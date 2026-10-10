@@ -1,0 +1,26 @@
+{
+  "updated": "2026-10-10 19:11 JST",
+  "market_status": "setup",
+  "signals": [
+    {
+      "ticker": "9843",
+      "name": "NITORI",
+      "signal": "HOLD",
+      "position": "+100",
+      "trigger": "ADD > ¥3,200",
+      "invalid": "INVALID < ¥3,020",
+      "rationale": "Initial widget seed; next scheduled analysis will refresh this.",
+      "strength": "B"
+    },
+    {
+      "ticker": "6460",
+      "name": "SEGA SAMMY",
+      "signal": "WAIT",
+      "position": "WATCH",
+      "trigger": "Waiting for first scheduled analysis",
+      "invalid": "-",
+      "rationale": "Initial widget seed; next scheduled analysis will refresh this.",
+      "strength": "C"
+    }
+  ]
+}
