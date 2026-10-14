@@ -1,16 +1,16 @@
 {
-  "updated": "2026-10-10 19:11 JST",
-  "market_data_through": "2026-10-09 close",
-  "market_status": "setup",
+  "updated": "2026-10-14 09:07 JST",
+  "market_data_through": "2026-10-13 close",
+  "market_status": "open",
   "signals": [
     {
       "ticker": "9843",
       "name": "NITORI",
       "signal": "HOLD",
       "position": "+100",
-      "trigger": "ADD > ¥3,200",
-      "invalid": "INVALID < ¥3,020",
-      "rationale": "Initial widget seed; next scheduled analysis will refresh this.",
+      "trigger": "Confirm breakout > ¥3,215",
+      "invalid": "Watch < ¥3,115",
+      "rationale": "10/13 closed at ¥3,202 after reaching ¥3,214; the rebound is intact, but the breakout above the recent high is not yet clearly confirmed.",
       "strength": "B"
     },
     {
@@ -18,10 +18,10 @@
       "name": "SEGA SAMMY",
       "signal": "WAIT",
       "position": "WATCH",
-      "trigger": "Waiting for first scheduled analysis",
-      "invalid": "-",
-      "rationale": "Initial widget seed; next scheduled analysis will refresh this.",
-      "strength": "C"
+      "trigger": "Breakout > ¥3,422",
+      "invalid": "Watch < ¥3,239",
+      "rationale": "10/13 closed at ¥3,333 after a strong rise, but it remains below the recent ¥3,422 high, so chasing here is less attractive than waiting for confirmation.",
+      "strength": "B"
     }
   ]
 }
