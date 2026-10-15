@@ -1,0 +1,16 @@
+{
+  "stocks": [
+    {
+      "ticker": "9843",
+      "symbol": "9843.T",
+      "name": "NITORI",
+      "position": "+100"
+    },
+    {
+      "ticker": "6460",
+      "symbol": "6460.T",
+      "name": "SEGA SAMMY",
+      "position": "WATCH"
+    }
+  ]
+}
