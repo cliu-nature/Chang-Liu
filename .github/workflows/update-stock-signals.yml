@@ -1,0 +1,39 @@
+name: Update Stock Signals
+
+on:
+  schedule:
+    # 09:05 JST, Monday-Friday (00:05 UTC)
+    - cron: "5 0 * * 1-5"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Update signals
+        run: python stock-signals/update_signals.py
+
+      - name: Commit updated feed
+        run: |
+          if git diff --quiet -- stock-signals/signals.json; then
+            echo "No signal changes to commit."
+            exit 0
+          fi
+
+          git config user.name "stock-signals-bot"
+          git config user.email "stock-signals-bot@users.noreply.github.com"
+          git add stock-signals/signals.json
+          git commit -m "Update stock signals"
+          git push
