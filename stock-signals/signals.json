@@ -1,7 +1,7 @@
 {
-  "updated": "2026-10-14 09:07 JST",
-  "market_data_through": "2026-10-13 close",
-  "market_status": "open",
+  "updated": "2026-10-15 14:54 JST",
+  "market_data_through": "2026-10-14 close",
+  "market_status": "updated",
   "signals": [
     {
       "ticker": "9843",
@@ -10,7 +10,7 @@
       "position": "+100",
       "trigger": "Confirm breakout > ¥3,215",
       "invalid": "Watch < ¥3,115",
-      "rationale": "10/13 closed at ¥3,202 after reaching ¥3,214; the rebound is intact, but the breakout above the recent high is not yet clearly confirmed.",
+      "rationale": "10/14 closed at ¥3,188 after trading ¥3,148–¥3,218. The rebound structure remains intact, but the breakout above the recent high is still not confirmed.",
       "strength": "B"
     },
     {
@@ -20,7 +20,7 @@
       "position": "WATCH",
       "trigger": "Breakout > ¥3,422",
       "invalid": "Watch < ¥3,239",
-      "rationale": "10/13 closed at ¥3,333 after a strong rise, but it remains below the recent ¥3,422 high, so chasing here is less attractive than waiting for confirmation.",
+      "rationale": "10/14 closed at ¥3,309 after trading ¥3,265–¥3,328. Price remains below the recent ¥3,422 high, so the technical setup is still a wait-for-confirmation.",
       "strength": "B"
     }
   ]
