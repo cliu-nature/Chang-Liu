@@ -1,27 +1,39 @@
 {
-  "updated": "2026-10-16 09:04 JST",
+  "updated": "2026-10-16 13:18 JST",
   "market_data_through": "2026-10-15 close",
-  "market_status": "open",
+  "market_status": "updated",
   "signals": [
     {
       "ticker": "9843",
-      "name": "Nitori Holdings",
+      "name": "NITORI",
       "signal": "HOLD",
-      "position": "+200 reported; widget previously +100 (unverified)",
-      "trigger": "Close > ¥3,284 then successful retest; avoid chasing",
-      "invalid": "Close < ¥3,175; deeper < ¥3,148",
-      "rationale": "Bullish reversal developing: ¥3,262 close (+2.32%) cleared ¥3,218 on higher 3.29M volume, but next resistance ¥3,284 remains.",
-      "strength": "B+"
+      "position": "+100",
+      "trigger": "Long > ¥3,373 / Short < ¥2,857",
+      "invalid": "Kijun ¥3,146",
+      "rationale": "2026-10-15 closed at ¥3,262 in a mixed/range regime with no high-conviction breakout or breakdown.",
+      "strength": "C",
+      "close": 3262.0,
+      "tenkan": 3089.25,
+      "kijun": 3146.0,
+      "cloud_top": 3013.38,
+      "cloud_bottom": 2776.25,
+      "volume_ratio_20d": 0.94
     },
     {
       "ticker": "6460",
-      "name": "Sega Sammy Holdings",
+      "name": "SEGA SAMMY",
       "signal": "WAIT",
-      "position": "Unknown",
-      "trigger": "Close > ¥3,397 then retest; major resistance ¥3,422",
-      "invalid": "Close < ¥3,317; deeper < ¥3,265",
-      "rationale": "Bullish reversal developing: ¥3,356 close (+1.42%) with 1.21M volume, but ¥3,397–3,422 resistance is unbroken.",
-      "strength": "B"
+      "position": "WATCH",
+      "trigger": "Add/Long > ¥3,422",
+      "invalid": "Watch < ¥3,254",
+      "rationale": "2026-10-15 closed at ¥3,356 with a constructive trend above Kijun; a fresh breakout is still required for a stronger entry.",
+      "strength": "B+",
+      "close": 3356.0,
+      "tenkan": 3264.5,
+      "kijun": 3254.0,
+      "cloud_top": 2958.25,
+      "cloud_bottom": 2656.0,
+      "volume_ratio_20d": 1.08
     }
   ]
 }
