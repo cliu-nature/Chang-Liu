@@ -1,26 +1,26 @@
 {
-  "updated": "2026-10-15 14:54 JST",
-  "market_data_through": "2026-10-14 close",
-  "market_status": "updated",
+  "updated": "2026-10-16 09:04 JST",
+  "market_data_through": "2026-10-15 close",
+  "market_status": "open",
   "signals": [
     {
       "ticker": "9843",
-      "name": "NITORI",
+      "name": "Nitori Holdings",
       "signal": "HOLD",
-      "position": "+100",
-      "trigger": "Confirm breakout > ¥3,215",
-      "invalid": "Watch < ¥3,115",
-      "rationale": "10/14 closed at ¥3,188 after trading ¥3,148–¥3,218. The rebound structure remains intact, but the breakout above the recent high is still not confirmed.",
-      "strength": "B"
+      "position": "+200 reported; widget previously +100 (unverified)",
+      "trigger": "Close > ¥3,284 then successful retest; avoid chasing",
+      "invalid": "Close < ¥3,175; deeper < ¥3,148",
+      "rationale": "Bullish reversal developing: ¥3,262 close (+2.32%) cleared ¥3,218 on higher 3.29M volume, but next resistance ¥3,284 remains.",
+      "strength": "B+"
     },
     {
       "ticker": "6460",
-      "name": "SEGA SAMMY",
+      "name": "Sega Sammy Holdings",
       "signal": "WAIT",
-      "position": "WATCH",
-      "trigger": "Breakout > ¥3,422",
-      "invalid": "Watch < ¥3,239",
-      "rationale": "10/14 closed at ¥3,309 after trading ¥3,265–¥3,328. Price remains below the recent ¥3,422 high, so the technical setup is still a wait-for-confirmation.",
+      "position": "Unknown",
+      "trigger": "Close > ¥3,397 then retest; major resistance ¥3,422",
+      "invalid": "Close < ¥3,317; deeper < ¥3,265",
+      "rationale": "Bullish reversal developing: ¥3,356 close (+1.42%) with 1.21M volume, but ¥3,397–3,422 resistance is unbroken.",
       "strength": "B"
     }
   ]
