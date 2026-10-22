@@ -1,27 +1,39 @@
 {
-  "updated": "2026-10-21 16:55 JST",
-  "market_data_through": "2026-10-20 close",
-  "market_status": "unchanged",
+  "updated": "2026-10-22 09:08 JST",
+  "market_data_through": "2026-10-21 close",
+  "market_status": "updated",
   "signals": [
     {
       "ticker": "9843",
       "name": "NITORI",
-      "signal": "WAIT",
-      "position": "+200 (user confirmed 2026-10-21)",
-      "trigger": "DISABLED — delayed prior-close data; no actionable ADD trigger",
-      "invalid": "Not evaluated on live Oct 21 prices",
-      "rationale": "Safety hold: latest verified feed is Oct 20 close; Oct 21 live price and execution conditions not verified. Earlier Add/Long > ¥3,366 was conditional, not a confirmed ADD. Do not act on this feed.",
-      "strength": "D"
+      "signal": "HOLD",
+      "position": "+100",
+      "trigger": "Add/Long > ¥3,366",
+      "invalid": "Watch < ¥3,115",
+      "rationale": "2026-10-21 closed at ¥3,289 with a constructive trend above Kijun; a fresh breakout is still required for a stronger entry.",
+      "strength": "B+",
+      "close": 3289.0,
+      "tenkan": 3196.0,
+      "kijun": 3115.0,
+      "cloud_top": 3103.38,
+      "cloud_bottom": 2866.75,
+      "volume_ratio_20d": 0.53
     },
     {
       "ticker": "6460",
       "name": "SEGA SAMMY",
       "signal": "WAIT",
       "position": "WATCH",
-      "trigger": "DISABLED — delayed prior-close data; no actionable SHORT trigger",
-      "invalid": "Not evaluated on live Oct 21 prices",
-      "rationale": "Safety hold: Oct 21 intraday price and confirmation not verified. Previous price levels are historical reference only.",
-      "strength": "D"
+      "trigger": "Add/Long > ¥3,483",
+      "invalid": "Watch < ¥3,296",
+      "rationale": "2026-10-21 closed at ¥3,378 with a constructive trend above Kijun; a fresh breakout is still required for a stronger entry.",
+      "strength": "B+",
+      "close": 3378.0,
+      "tenkan": 3319.5,
+      "kijun": 3295.5,
+      "cloud_top": 3016.88,
+      "cloud_bottom": 2656.0,
+      "volume_ratio_20d": 0.73
     }
   ]
 }
