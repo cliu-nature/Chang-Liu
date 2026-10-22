@@ -1,6 +1,6 @@
 {
-  "updated": "2026-10-22 09:08 JST",
-  "market_data_through": "2026-10-21 close",
+  "updated": "2026-10-23 07:42 JST",
+  "market_data_through": "2026-10-22 close",
   "market_status": "updated",
   "signals": [
     {
@@ -8,16 +8,16 @@
       "name": "NITORI",
       "signal": "HOLD",
       "position": "+100",
-      "trigger": "Add/Long > ¥3,366",
+      "trigger": "Add/Long > ¥3,368",
       "invalid": "Watch < ¥3,115",
-      "rationale": "2026-10-21 closed at ¥3,289 with a constructive trend above Kijun; a fresh breakout is still required for a stronger entry.",
+      "rationale": "2026-10-22 closed at ¥3,319 with a constructive trend above Kijun; a fresh breakout is still required for a stronger entry.",
       "strength": "B+",
-      "close": 3289.0,
-      "tenkan": 3196.0,
+      "close": 3319.0,
+      "tenkan": 3240.5,
       "kijun": 3115.0,
       "cloud_top": 3103.38,
       "cloud_bottom": 2866.75,
-      "volume_ratio_20d": 0.53
+      "volume_ratio_20d": 0.72
     },
     {
       "ticker": "6460",
@@ -25,15 +25,15 @@
       "signal": "WAIT",
       "position": "WATCH",
       "trigger": "Add/Long > ¥3,483",
-      "invalid": "Watch < ¥3,296",
-      "rationale": "2026-10-21 closed at ¥3,378 with a constructive trend above Kijun; a fresh breakout is still required for a stronger entry.",
+      "invalid": "Watch < ¥3,298",
+      "rationale": "2026-10-22 closed at ¥3,397 with a constructive trend above Kijun; a fresh breakout is still required for a stronger entry.",
       "strength": "B+",
-      "close": 3378.0,
-      "tenkan": 3319.5,
-      "kijun": 3295.5,
-      "cloud_top": 3016.88,
-      "cloud_bottom": 2656.0,
-      "volume_ratio_20d": 0.73
+      "close": 3397.0,
+      "tenkan": 3349.0,
+      "kijun": 3298.0,
+      "cloud_top": 3032.12,
+      "cloud_bottom": 2696.75,
+      "volume_ratio_20d": 1.07
     }
   ]
 }
