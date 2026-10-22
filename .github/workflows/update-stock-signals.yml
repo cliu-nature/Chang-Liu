@@ -2,44 +2,87 @@ name: Update Stock Signals
 
 on:
   schedule:
-    # Run early so the previous close is ready well before 09:00 JST.
-    # Two staggered runs reduce the impact of GitHub Actions cron delays.
-    - cron: "35 4,6 * * 1-5"
-      timezone: "Asia/Tokyo"
+    # UTC: 16:17, 18:17, 22:17 JST; overnight repair at 06:43 JST.
+    - cron: '17 7,9,13 * * 1-5'
+    - cron: '43 21 * * 0-4'
   workflow_dispatch:
   push:
-    paths:
-      - "stock-signals/watchlist.json"
-      - ".github/workflows/update-stock-signals.yml"
+    branches: [main]
+    paths: ['stock-signals/**', '.github/workflows/update-stock-signals.yml']
+  pull_request:
+    paths: ['stock-signals/**', '.github/workflows/update-stock-signals.yml']
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: stock-signals-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  update:
+  test:
     runs-on: ubuntu-latest
-
+    timeout-minutes: 10
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: stock-signals/requirements.txt
+      - run: pip install -r stock-signals/requirements.txt
+      - run: python -m unittest discover -s stock-signals -p 'test_*.py'
+      - run: node stock-signals/test_widget.cjs
 
-      - name: Update signals
-        run: python stock-signals/update_signals.py
-
-      - name: Commit updated feed
+  update:
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r stock-signals/requirements.txt
+      - name: Generate and publish feed (including failure status)
         run: |
-          if git diff --quiet -- stock-signals/signals.json; then
-            echo "No signal changes to commit."
-            exit 0
-          fi
-
-          git config user.name "stock-signals-bot"
-          git config user.email "stock-signals-bot@users.noreply.github.com"
-          git add stock-signals/signals.json
-          git commit -m "Update stock signals"
-          git push
+          git config user.name 'stock-signals-bot'
+          git config user.email 'stock-signals-bot@users.noreply.github.com'
+          for attempt in 1 2 3; do
+            git fetch origin main
+            # Recompute from latest watchlist after any concurrent edit.
+            git reset --hard origin/main
+            attempt_start=$(date +%s)
+            python stock-signals/update_signals.py || true
+            # A crash before writing must not publish an older healthy document.
+            python - "$attempt_start" <<'PY'
+          import json, sys
+          from datetime import datetime
+          data = json.load(open('stock-signals/signals.json'))
+          assert datetime.fromisoformat(data['generated_at']).timestamp() >= int(sys.argv[1]), 'No new generation'
+          PY
+            git add stock-signals/signals.json stock-signals/report.md
+            git diff --cached --quiet && exit 0
+            git commit -m 'Update stock signals and health'
+            if git push origin HEAD:main; then exit 0; fi
+          done
+          exit 1
+      - name: Report health and fail unhealthy run
+        if: always()
+        run: |
+          python - <<'PY'
+          import json, os
+          from datetime import datetime, timezone
+          data = json.load(open('stock-signals/signals.json'))
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as f:
+              f.write(f"Status: {data.get('status')}\n\nData: {data.get('market_data_through')}\n")
+          assert data.get('status') == 'ok', 'Feed unhealthy; inspect signals.json'
+          assert datetime.fromisoformat(data['expires_at']) > datetime.now(timezone.utc), 'Feed expired'
+          assert (datetime.now(timezone.utc) - datetime.fromisoformat(data['generated_at'])).total_seconds() < 900, 'No new generation'
+          PY
