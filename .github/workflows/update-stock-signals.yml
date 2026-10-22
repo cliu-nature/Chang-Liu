@@ -2,8 +2,10 @@ name: Update Stock Signals
 
 on:
   schedule:
-    # 09:05 JST, Monday-Friday (00:05 UTC)
-    - cron: "5 0 * * 1-5"
+    # Run early so the previous close is ready well before 09:00 JST.
+    # Two staggered runs reduce the impact of GitHub Actions cron delays.
+    - cron: "35 4,6 * * 1-5"
+      timezone: "Asia/Tokyo"
   workflow_dispatch:
 
 permissions:
