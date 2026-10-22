@@ -7,6 +7,10 @@ on:
     - cron: "35 4,6 * * 1-5"
       timezone: "Asia/Tokyo"
   workflow_dispatch:
+  push:
+    paths:
+      - "stock-signals/watchlist.json"
+      - ".github/workflows/update-stock-signals.yml"
 
 permissions:
   contents: write
