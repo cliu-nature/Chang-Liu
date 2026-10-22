@@ -2,6 +2,8 @@ import json
 import math
 import os
 import urllib.request
+import urllib.parse
+import time
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
@@ -11,11 +13,32 @@ OUTPUT = BASE / "signals.json"
 JST = timezone(timedelta(hours=9))
 
 
-def fetch_chart(symbol):
+def fetch_chart(symbol, expected_date=None):
+    error = None
+    latest = None
+    for attempt in range(3):
+        for host in ("query1", "query2"):
+            try:
+                bars = download_chart(symbol, expected_date, host)
+                if expected_date and bars[-1]["date"] != expected_date:
+                    if latest is None or bars[-1]["date"] > latest[-1]["date"]:
+                        latest = bars
+                    raise ValueError("Provider has not published expected close")
+                return bars
+            except Exception as exc:
+                error = exc
+        if attempt < 2:
+            time.sleep(2 ** attempt)
+    if latest:
+        return latest  # build_feed labels it stale and disables recommendations.
+    raise RuntimeError(f"Market data unavailable for {symbol}") from error
+
+
+def download_chart(symbol, expected_date, host):
     url = (
-        "https://query1.finance.yahoo.com/v8/finance/chart/"
+        f"https://{host}.finance.yahoo.com/v8/finance/chart/"
         + urllib.parse.quote(symbol)
-        + "?range=6mo&interval=1d&includePrePost=false&events=div%2Csplits"
+        + "?range=1y&interval=1d&includePrePost=false&events=div%2Csplits"
     )
     req = urllib.request.Request(
         url,
@@ -33,12 +56,11 @@ def fetch_chart(symbol):
     adj = result.get("indicators", {}).get("adjclose", [{}])[0].get("adjclose")
 
     bars = []
-    today_jst = datetime.now(JST).date()
+    expected_date = expected_date or session_context(datetime.now(JST))[0]
 
     for i, ts in enumerate(timestamps):
         dt = datetime.fromtimestamp(ts, tz=timezone.utc).astimezone(JST)
-        # At the 09:05 run we deliberately use only completed sessions.
-        if dt.date() >= today_jst:
+        if dt.date().isoformat() > expected_date:
             continue
 
         o = q["open"][i]
@@ -47,7 +69,9 @@ def fetch_chart(symbol):
         c = q["close"][i]
         v = q["volume"][i]
 
-        if None in (h, l, c):
+        if any(not isinstance(x, (int, float)) or not math.isfinite(x) or x <= 0 for x in (h, l, c)):
+            continue
+        if h < l or not l <= c <= h or v is None or not math.isfinite(v) or v < 0:
             continue
 
         bars.append(
@@ -62,7 +86,10 @@ def fetch_chart(symbol):
             }
         )
 
-    if len(bars) < 60:
+    bars.sort(key=lambda bar: bar["date"])
+    if len({bar["date"] for bar in bars}) != len(bars):
+        raise ValueError("Duplicate daily bars")
+    if len(bars) < 78:
         raise RuntimeError(f"Not enough daily data for {symbol}: {len(bars)} bars")
 
     return bars
@@ -197,47 +224,112 @@ def analyze(stock, bars):
     }, last["date"]
 
 
-def main():
-    with WATCHLIST.open("r", encoding="utf-8") as f:
-        watchlist = json.load(f)
+def session_context(now):
+    """Latest close due after a 45-minute vendor publication buffer, and expiry."""
+    import exchange_calendars as xcals
+    calendar = xcals.get_calendar("XTKS")
+    schedule = calendar.schedule.loc[
+        (now - timedelta(days=40)).date().isoformat():
+        (now + timedelta(days=40)).date().isoformat()
+    ]
+    deadlines = [(idx.date().isoformat(), close.to_pydatetime() + timedelta(minutes=45))
+                 for idx, close in schedule["close"].items()]
+    completed = [(day, due) for day, due in deadlines if due <= now]
+    expected = completed[-1][0]
+    expires = next(due for day, due in deadlines if due > now)
+    return expected, expires
 
+
+def blocked(stock, previous, reason):
+    result = dict(previous or {})
+    result.update(ticker=stock["ticker"], name=stock["name"],
+                  position=stock.get("position", "WATCH"), signal="WAIT",
+                  strength="D", trigger="DATA UNAVAILABLE - DO NOT TRADE",
+                  invalid="-", rationale=reason, status="error", stale=True,
+                  actionable=False, error=reason)
+    return result
+
+
+def build_feed(watchlist, previous, now, fetcher=fetch_chart):
+    expected, expires = session_context(now)
+    stocks = watchlist["stocks"]
+    if not stocks or len({s["ticker"] for s in stocks}) != len(stocks):
+        raise ValueError("Watchlist must contain unique tickers")
+    old = {s["ticker"]: s for s in previous.get("signals", [])}
     signals = []
-    dates = []
-
-    for stock in watchlist["stocks"]:
+    for stock in stocks:
         try:
-            bars = fetch_chart(stock["symbol"])
-            signal, data_date = analyze(stock, bars)
+            bars = fetcher(stock["symbol"], expected)
+            signal, day = analyze(stock, bars)
+            signal.update(market_data_date=day,
+                          last_success_at=now.isoformat() if day == expected else old.get(stock["ticker"], {}).get("last_success_at"),
+                          status="ok", stale=False, actionable=True, error=None)
+            if day != expected:
+                signal = blocked(stock, signal, f"Expected {expected} close; received {day}")
             signals.append(signal)
-            dates.append(data_date)
-        except Exception as e:
-            signals.append(
-                {
-                    "ticker": stock["ticker"],
-                    "name": stock["name"],
-                    "signal": "WAIT",
-                    "position": stock.get("position", "WATCH"),
-                    "trigger": "Data unavailable",
-                    "invalid": "-",
-                    "rationale": f"Automatic market-data update failed: {type(e).__name__}",
-                    "strength": "D",
-                }
-            )
-
-    now = datetime.now(JST)
-    latest_date = max(dates) if dates else "unknown"
-
-    output = {
+        except Exception as exc:
+            signals.append(blocked(stock, old.get(stock["ticker"]),
+                                   f"Market-data fetch/analysis failed: {type(exc).__name__}"))
+    healthy = all(s["status"] == "ok" for s in signals)
+    dates = [s.get("market_data_date") for s in signals]
+    # Never describe mixed dates as a common fresh close.
+    common = min(dates) if all(dates) else None
+    return {
+        "schema_version": 2,
         "updated": now.strftime("%Y-%m-%d %H:%M JST"),
-        "market_data_through": f"{latest_date} close" if latest_date != "unknown" else "unknown",
-        "market_status": "unchanged" if not dates else "updated",
+        "generated_at": now.isoformat(),
+        "last_success_at": now.isoformat() if healthy else previous.get("last_success_at"),
+        "expected_market_date": expected,
+        "market_data_through": f"{common} close" if common else "unknown",
+        "market_status": "updated" if healthy else "unavailable",
+        "status": "ok" if healthy else "error",
+        "stale": not healthy,
+        "actionable": healthy,
+        "expires_at": expires.astimezone(JST).isoformat(),
+        "source": "Yahoo Finance chart API (query1/query2, same provider)",
+        "run_url": (f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/actions/runs/"
+                    f"{os.environ['GITHUB_RUN_ID']}" if os.getenv("GITHUB_RUN_ID") else None),
         "signals": signals,
     }
 
-    OUTPUT.write_text(json.dumps(output, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+def main():
+    try:
+        previous = json.loads(OUTPUT.read_text(encoding="utf-8")) if OUTPUT.exists() else {}
+    except (ValueError, OSError):
+        previous = {}
+    now = datetime.now(JST)
+    try:
+        watchlist = json.loads(WATCHLIST.read_text(encoding="utf-8"))
+        output = build_feed(watchlist, previous, now)
+    except Exception as exc:
+        # Configuration/calendar failure also revokes previously published signals.
+        output = dict(previous)
+        output.update(schema_version=2, generated_at=now.isoformat(),
+                      updated=now.strftime("%Y-%m-%d %H:%M JST"),
+                      status="error", stale=True, actionable=False,
+                      market_status="unavailable", expires_at=now.isoformat(),
+                      error=f"Pipeline failed: {type(exc).__name__}")
+        output["signals"] = [blocked(s, s, output["error"]) for s in previous.get("signals", [])]
+    temp = OUTPUT.with_suffix(".tmp")
+    temp.write_text(json.dumps(output, ensure_ascii=False, indent=2, allow_nan=False) + "\n",
+                    encoding="utf-8")
+    temp.replace(OUTPUT)
+    report = ["# Stock signals", "",
+              f"Status: {output['status']} | Generated: {output['generated_at']}",
+              f"Market data: {output.get('market_data_through', 'unknown')}",
+              f"Expires: {output['expires_at']}", ""]
+    if not output["actionable"]:
+        report += ["**STALE / UNAVAILABLE — DO NOT TRADE**", ""]
+    for signal in output.get("signals", []):
+        report += [f"## {signal['ticker']} {signal['name']}",
+                   f"{signal['signal']} | Position: {signal['position']} | Strength: {signal['strength']}",
+                   signal["trigger"], signal["invalid"], signal["rationale"], ""]
+    OUTPUT.with_name("report.md").write_text("\n".join(report) + "\n", encoding="utf-8")
+    print(json.dumps({key: output.get(key) for key in
+                      ("status", "expected_market_date", "market_data_through", "expires_at")}))
+    return 0 if output["status"] == "ok" else 1
 
 
 if __name__ == "__main__":
-    # urllib.parse is imported here to keep the top import list compact.
-    import urllib.parse
-    main()
+    raise SystemExit(main())
