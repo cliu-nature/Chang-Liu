@@ -1,7 +1,9 @@
 {
-  "updated": "2026-10-23 07:42 JST",
-  "market_data_through": "2026-10-22 close",
+  "updated": "2026-10-25 11:45 JST",
+  "generated_at": "2026-10-25T11:45:05+09:00",
+  "market_data_through": "2026-10-23 close",
   "market_status": "updated",
+  "stale": false,
   "signals": [
     {
       "ticker": "9843",
@@ -9,15 +11,17 @@
       "signal": "HOLD",
       "position": "+100",
       "trigger": "Add/Long > ¥3,368",
-      "invalid": "Watch < ¥3,115",
-      "rationale": "2026-10-22 closed at ¥3,319 with a constructive trend above Kijun; a fresh breakout is still required for a stronger entry.",
+      "invalid": "Watch < ¥3,169",
+      "rationale": "2026-10-23 closed at ¥3,359 with a constructive trend above Kijun; a fresh breakout is still required for a stronger entry.",
       "strength": "B+",
-      "close": 3319.0,
-      "tenkan": 3240.5,
-      "kijun": 3115.0,
-      "cloud_top": 3103.38,
+      "close": 3359.0,
+      "tenkan": 3314.5,
+      "kijun": 3169.0,
+      "cloud_top": 3120.0,
       "cloud_bottom": 2866.75,
-      "volume_ratio_20d": 0.72
+      "volume_ratio_20d": 0.95,
+      "data_as_of": "2026-10-23",
+      "weekly_plan_through": null
     },
     {
       "ticker": "6460",
@@ -25,15 +29,17 @@
       "signal": "WAIT",
       "position": "WATCH",
       "trigger": "Add/Long > ¥3,483",
-      "invalid": "Watch < ¥3,298",
-      "rationale": "2026-10-22 closed at ¥3,397 with a constructive trend above Kijun; a fresh breakout is still required for a stronger entry.",
+      "invalid": "Watch < ¥3,320",
+      "rationale": "2026-10-23 closed at ¥3,359 with a constructive trend above Kijun; a fresh breakout is still required for a stronger entry.",
       "strength": "B+",
-      "close": 3397.0,
-      "tenkan": 3349.0,
-      "kijun": 3298.0,
-      "cloud_top": 3032.12,
-      "cloud_bottom": 2696.75,
-      "volume_ratio_20d": 1.07
+      "close": 3359.0,
+      "tenkan": 3374.0,
+      "kijun": 3319.5,
+      "cloud_top": 3044.88,
+      "cloud_bottom": 2708.75,
+      "volume_ratio_20d": 0.87,
+      "data_as_of": "2026-10-23",
+      "weekly_plan_through": null
     }
   ]
 }
