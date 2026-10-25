@@ -4,13 +4,31 @@
       "ticker": "9843",
       "symbol": "9843.T",
       "name": "NITORI",
-      "position": "+100"
+      "position": "+200",
+      "weekly_plan": {
+        "valid_from": "2026-10-23",
+        "valid_through": "2026-10-30",
+        "mode": "long_exit_watch",
+        "bullish_close": 3481,
+        "warning_close": 3300,
+        "risk_close": 3250,
+        "notes": "Protect existing 200-share long; high RSI and October 23 near-low close. Closing-level alerts only."
+      }
     },
     {
       "ticker": "6460",
       "symbol": "6460.T",
       "name": "SEGA SAMMY",
-      "position": "WATCH"
+      "position": "WATCH",
+      "weekly_plan": {
+        "valid_from": "2026-10-23",
+        "valid_through": "2026-10-30",
+        "mode": "short_confirmation_watch",
+        "watch_below": 3300,
+        "confirm_below": 3250,
+        "invalid_above": 3483,
+        "notes": "No early short. Two closes below confirmation with Kijun break and >=1.10x prior-20-day average volume for a potential bearish setup."
+      }
     }
   ]
 }
