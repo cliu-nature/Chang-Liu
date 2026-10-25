@@ -33,12 +33,15 @@ def fetch_chart(symbol):
     adj = result.get("indicators", {}).get("adjclose", [{}])[0].get("adjclose")
 
     bars = []
-    today_jst = datetime.now(JST).date()
+    now_jst = datetime.now(JST)
+    today_jst = now_jst.date()
+    market_closed = (now_jst.hour, now_jst.minute) >= (15, 40)
 
     for i, ts in enumerate(timestamps):
         dt = datetime.fromtimestamp(ts, tz=timezone.utc).astimezone(JST)
-        # At the 09:05 run we deliberately use only completed sessions.
-        if dt.date() >= today_jst:
+        # Include today's session only after the Tokyo market has fully closed.
+        # Weekend runs can safely include the last completed weekday.
+        if dt.date() > today_jst or (dt.date() == today_jst and not market_closed):
             continue
 
         o = q["open"][i]
@@ -179,6 +182,67 @@ def analyze(stock, bars):
             f"high-conviction breakout or breakdown."
         )
 
+
+    # Temporary, auditable risk-watch overlay for the week of October 26-30.
+    # Only use completed daily bars; never translate an intraday touch into a signal.
+    plan = stock.get("weekly_plan") or {}
+    if plan.get("valid_from", "9999") <= last["date"] <= plan.get("valid_through", "0000"):
+        mode = plan.get("mode")
+        if mode == "long_exit_watch" and has_core:
+            warning = float(plan["warning_close"])
+            risk = float(plan["risk_close"])
+            breakout_level = float(plan["bullish_close"])
+            close_near_low = (last["high"] > last["low"] and
+                              (last["high"] - close) / (last["high"] - last["low"]) >= 0.75)
+            rejection = (last["high"] >= breakout_level and close < breakout_level and close_near_low)
+            if close < risk:
+                signal, strength = "REDUCE", "B"
+                trigger = f"Exit risk: close < {fmt_yen(risk)}"
+                invalid = f"Recover > {fmt_yen(warning)}"
+                rationale = "Long position risk elevated: closing price broke the deeper risk level."
+            elif close < warning:
+                signal, strength = "REDUCE", "C"
+                trigger = f"Exit watch: close < {fmt_yen(warning)}"
+                invalid = f"Recover > {fmt_yen(warning)}"
+                rationale = "Long position showing weakness; reassess risk before the next session."
+            elif close > breakout_level:
+                signal, strength = "HOLD", "B+"
+                trigger = f"Breakout holds > {fmt_yen(breakout_level)}"
+                invalid = f"Exit watch < {fmt_yen(warning)}"
+                rationale = "Price confirmed a new closing breakout; monitor follow-through, not an automatic add."
+            else:
+                signal, strength = "HOLD", "C" if rejection else "B-"
+                trigger = f"Exit watch < {fmt_yen(warning)}"
+                invalid = f"Bullish > {fmt_yen(breakout_level)}"
+                rationale = ("Intraday breakout rejected; closed near session low. Protect long-position risk."
+                             if rejection else
+                             "Holding above warning level; watch for close below warning or renewed breakout.")
+        elif mode == "short_confirmation_watch" and not has_core:
+            watch = float(plan["watch_below"])
+            confirm = float(plan["confirm_below"])
+            invalidate = float(plan["invalid_above"])
+            if close > invalidate:
+                signal, strength = "WAIT", "C"
+                trigger = f"No short above {fmt_yen(invalidate)}"
+                invalid = f"Watch again < {fmt_yen(watch)}"
+                rationale = "Upside breakout contradicts the short thesis; no bearish confirmation."
+            elif (close < confirm and prev["close"] < confirm and
+                  close < kijun and volume_ratio >= 1.10):
+                signal, strength = "SHORT", "B"
+                trigger = f"2 closes < {fmt_yen(confirm)}"
+                invalid = f"Breakdown invalid > {fmt_yen(watch)}"
+                rationale = "Bearish breakdown confirmed by two closes, Kijun and volume; review short risks."
+            elif close < watch:
+                signal, strength = "WAIT", "C"
+                trigger = f"Confirm < {fmt_yen(confirm)}"
+                invalid = f"No short > {fmt_yen(invalidate)}"
+                rationale = "Initial bearish warning only; wait for sustained downside confirmation."
+            else:
+                signal, strength = "WAIT", "C"
+                trigger = f"Short watch < {fmt_yen(watch)}"
+                invalid = f"No short > {fmt_yen(invalidate)}"
+                rationale = "Price has not broken the watch level; shorting the uptrend is premature."
+
     return {
         "ticker": stock["ticker"],
         "name": stock["name"],
@@ -194,6 +258,8 @@ def analyze(stock, bars):
         "cloud_top": round(cloud_top, 2) if cloud_top is not None else None,
         "cloud_bottom": round(cloud_bottom, 2) if cloud_bottom is not None else None,
         "volume_ratio_20d": round(volume_ratio, 2),
+        "data_as_of": last["date"],
+        "weekly_plan_through": plan.get("valid_through") if plan else None,
     }, last["date"]
 
 
@@ -229,8 +295,11 @@ def main():
 
     output = {
         "updated": now.strftime("%Y-%m-%d %H:%M JST"),
+        "generated_at": now.isoformat(timespec="seconds"),
         "market_data_through": f"{latest_date} close" if latest_date != "unknown" else "unknown",
-        "market_status": "unchanged" if not dates else "updated",
+        "market_status": ("partial" if dates and len(dates) != len(watchlist["stocks"]) else
+                          "unavailable" if not dates else "updated"),
+        "stale": not bool(dates) or any((now.date() - datetime.fromisoformat(d).date()).days > 4 for d in dates),
         "signals": signals,
     }
 
