@@ -89,7 +89,102 @@ def fmt_yen(x):
     return f"¥{x:,.0f}"
 
 
-def analyze(stock, bars):
+
+def load_analyst_snapshot():
+    if not ANALYSTS.exists():
+        return {"stocks": {}, "expires_after_days": 0}
+    try:
+        with ANALYSTS.open("r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {"stocks": {}, "expires_after_days": 0}
+
+
+def shift_strength(value, steps):
+    ladder = ["D", "C", "B-", "B", "B+", "A", "A+"]
+    if value not in ladder or steps == 0:
+        return value
+    idx = max(0, min(len(ladder) - 1, ladder.index(value) + steps))
+    return ladder[idx]
+
+
+def analyst_overlay(ticker, close, bullish, bearish, tenkan, kijun, snapshot):
+    item = (snapshot.get("stocks") or {}).get(str(ticker))
+    if not item:
+        return {
+            "fresh": False,
+            "stance": "UNAVAILABLE",
+            "alignment": "TECHNICAL ONLY",
+            "target_price": None,
+            "target_upside_pct": None,
+            "revision_momentum": "UNKNOWN",
+            "as_of": None,
+            "strength_delta": 0,
+        }
+
+    try:
+        as_of = datetime.fromisoformat(item["as_of"]).date()
+        expiry = int(snapshot.get("expires_after_days", 10))
+        age_days = (datetime.now(JST).date() - as_of).days
+        fresh = 0 <= age_days <= expiry
+    except Exception:
+        fresh = False
+
+    target = item.get("target_price")
+    upside = None
+    if target is not None and close:
+        upside = (float(target) / float(close) - 1.0) * 100.0
+
+    if not fresh:
+        return {
+            "fresh": False,
+            "stance": item.get("stance", "STALE"),
+            "alignment": "STALE — IGNORED",
+            "target_price": target,
+            "target_upside_pct": round(upside, 1) if upside is not None else None,
+            "revision_momentum": item.get("revision_momentum", "UNKNOWN"),
+            "as_of": item.get("as_of"),
+            "strength_delta": 0,
+        }
+
+    score = int(item.get("stance_score", 0))
+    price_bullish = bullish and close >= tenkan and close >= kijun
+    price_bearish = bearish or (close < tenkan and close < kijun)
+
+    if score > 0:
+        if price_bullish:
+            alignment, delta = "CONFIRMS", 1
+        elif price_bearish:
+            alignment, delta = "DIVERGES", -1
+        else:
+            alignment, delta = "MIXED", 0
+    elif score < 0:
+        if price_bearish:
+            alignment, delta = "CONFIRMS", 1
+        elif price_bullish:
+            alignment, delta = "DIVERGES", -1
+        else:
+            alignment, delta = "MIXED", 0
+    else:
+        alignment, delta = "NEUTRAL", 0
+
+    return {
+        "fresh": True,
+        "stance": item.get("stance", "NEUTRAL"),
+        "raw_consensus": item.get("raw_consensus"),
+        "alignment": alignment,
+        "target_price": target,
+        "target_upside_pct": round(upside, 1) if upside is not None else None,
+        "revision_momentum": item.get("revision_momentum", "UNKNOWN"),
+        "as_of": item.get("as_of"),
+        "buy_count": int(item.get("strong_buy", 0)) + int(item.get("buy", 0)),
+        "neutral_count": int(item.get("neutral", 0)),
+        "sell_count": int(item.get("sell", 0)) + int(item.get("strong_sell", 0)),
+        "strength_delta": delta,
+    }
+
+
+def analyze(stock, bars, analyst_snapshot):
     i = len(bars) - 1
     last = bars[i]
     prev = bars[i - 1]
@@ -243,6 +338,16 @@ def analyze(stock, bars):
                 invalid = f"No short > {fmt_yen(invalidate)}"
                 rationale = "Price has not broken the watch level; shorting the uptrend is premature."
 
+    analyst = analyst_overlay(
+        stock["ticker"], close, bullish, bearish, tenkan, kijun, analyst_snapshot
+    )
+    strength = shift_strength(strength, analyst.get("strength_delta", 0))
+
+    if analyst.get("fresh"):
+        stance = analyst.get("stance", "NEUTRAL")
+        alignment = analyst.get("alignment", "MIXED")
+        rationale += f" Analyst stance: {stance}; price/analyst alignment: {alignment}."
+
     return {
         "ticker": stock["ticker"],
         "name": stock["name"],
@@ -260,6 +365,16 @@ def analyze(stock, bars):
         "volume_ratio_20d": round(volume_ratio, 2),
         "data_as_of": last["date"],
         "weekly_plan_through": plan.get("valid_through") if plan else None,
+        "analyst_stance": analyst.get("stance"),
+        "analyst_alignment": analyst.get("alignment"),
+        "analyst_fresh": analyst.get("fresh"),
+        "analyst_as_of": analyst.get("as_of"),
+        "analyst_target_price": analyst.get("target_price"),
+        "analyst_target_upside_pct": analyst.get("target_upside_pct"),
+        "analyst_revision_momentum": analyst.get("revision_momentum"),
+        "analyst_buy_count": analyst.get("buy_count"),
+        "analyst_neutral_count": analyst.get("neutral_count"),
+        "analyst_sell_count": analyst.get("sell_count"),
     }, last["date"]
 
 
@@ -267,13 +382,15 @@ def main():
     with WATCHLIST.open("r", encoding="utf-8") as f:
         watchlist = json.load(f)
 
+    analyst_snapshot = load_analyst_snapshot()
+
     signals = []
     dates = []
 
     for stock in watchlist["stocks"]:
         try:
             bars = fetch_chart(stock["symbol"])
-            signal, data_date = analyze(stock, bars)
+            signal, data_date = analyze(stock, bars, analyst_snapshot)
             signals.append(signal)
             dates.append(data_date)
         except Exception as e:
