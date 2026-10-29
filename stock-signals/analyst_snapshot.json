@@ -1,0 +1,41 @@
+{
+  "updated": "2026-10-29",
+  "expires_after_days": 10,
+  "source": "Minkabu analyst consensus; recent broker revisions cross-checked with Kabuyoho",
+  "stocks": {
+    "6460": {
+      "as_of": "2026-10-27",
+      "raw_consensus": "BUY",
+      "stance": "MODERATELY BULLISH",
+      "stance_score": 1,
+      "strong_buy": 7,
+      "buy": 4,
+      "neutral": 3,
+      "sell": 0,
+      "strong_sell": 0,
+      "target_price": 3413,
+      "target_price_1w_ago": 3384,
+      "eps_current": 185.52,
+      "eps_1m_ago": 181.38,
+      "revision_momentum": "POSITIVE",
+      "note": "Analyst breadth and target revisions remain bullish, but recent price action has weakened and must confirm the rating story."
+    },
+    "9843": {
+      "as_of": "2026-10-28",
+      "raw_consensus": "BUY",
+      "stance": "NEUTRAL",
+      "stance_score": 0,
+      "strong_buy": 4,
+      "buy": 0,
+      "neutral": 7,
+      "sell": 0,
+      "strong_sell": 0,
+      "target_price": 3225,
+      "target_price_1w_ago": 3179,
+      "eps_current": 162.18,
+      "eps_1m_ago": 159.71,
+      "revision_momentum": "POSITIVE",
+      "note": "Targets and EPS estimates are rising, but the consensus target is below the current market price and most analysts are neutral."
+    }
+  }
+}
