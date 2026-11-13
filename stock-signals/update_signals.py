@@ -379,6 +379,31 @@ def analyze(stock, bars, analyst_snapshot):
     }, last["date"]
 
 
+
+def write_failure_feed(error):
+    now = datetime.now(JST)
+    previous_signals = []
+    previous_data_through = "unknown"
+    try:
+        if OUTPUT.exists():
+            previous = json.loads(OUTPUT.read_text(encoding="utf-8"))
+            previous_signals = previous.get("signals", [])
+            previous_data_through = previous.get("market_data_through", "unknown")
+    except Exception:
+        pass
+
+    output = {
+        "updated": now.strftime("%Y-%m-%d %H:%M JST"),
+        "generated_at": now.isoformat(timespec="seconds"),
+        "market_data_through": previous_data_through,
+        "market_status": "error",
+        "stale": True,
+        "error": type(error).__name__,
+        "signals": previous_signals,
+    }
+    OUTPUT.write_text(json.dumps(output, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
 def main():
     with WATCHLIST.open("r", encoding="utf-8") as f:
         watchlist = json.load(f)
@@ -427,4 +452,7 @@ def main():
 if __name__ == "__main__":
     # urllib.parse is imported here to keep the top import list compact.
     import urllib.parse
-    main()
+    try:
+        main()
+    except Exception as e:
+        write_failure_feed(e)
