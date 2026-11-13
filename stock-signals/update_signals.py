@@ -7,6 +7,7 @@ from pathlib import Path
 
 BASE = Path(__file__).resolve().parent
 WATCHLIST = BASE / "watchlist.json"
+ANALYSTS = BASE / "analyst_snapshot.json"
 OUTPUT = BASE / "signals.json"
 JST = timezone(timedelta(hours=9))
 
