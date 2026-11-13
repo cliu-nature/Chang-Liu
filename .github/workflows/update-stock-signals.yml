@@ -12,6 +12,7 @@ on:
   push:
     paths:
       - "stock-signals/watchlist.json"
+      - "stock-signals/analyst_snapshot.json"
       - "stock-signals/update_signals.py"
       - ".github/workflows/update-stock-signals.yml"
 
