@@ -7,6 +7,8 @@ on:
     # 09:15 UTC = 18:15 JST, backup run for delayed quote publication.
     - cron: "45 7 * * 1-5"
     - cron: "15 9 * * 1-5"
+    # 11:30 UTC = 20:30 JST, final backup run.
+    - cron: "30 11 * * 1-5"
   workflow_dispatch:
   push:
     paths:
