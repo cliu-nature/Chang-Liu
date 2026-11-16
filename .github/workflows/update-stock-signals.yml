@@ -2,12 +2,11 @@ name: Update Stock Signals
 
 on:
   schedule:
-    # Tokyo market closes at 15:30. Allow the daily bar to finalize before fetching.
-    # The second run guards against delayed publication by the quote provider.
-    - cron: "45 16 * * 1-5"
-      timezone: "Asia/Tokyo"
-    - cron: "15 18 * * 1-5"
-      timezone: "Asia/Tokyo"
+    # GitHub Actions cron is UTC.
+    # 07:45 UTC = 16:45 JST, after Tokyo market close.
+    # 09:15 UTC = 18:15 JST, backup run for delayed quote publication.
+    - cron: "45 7 * * 1-5"
+    - cron: "15 9 * * 1-5"
   workflow_dispatch:
   push:
     paths:
