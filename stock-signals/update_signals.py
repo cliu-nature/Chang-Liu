@@ -13,20 +13,36 @@ JST = timezone(timedelta(hours=9))
 
 
 def fetch_chart(symbol):
-    url = (
-        "https://query1.finance.yahoo.com/v8/finance/chart/"
-        + urllib.parse.quote(symbol)
-        + "?range=6mo&interval=1d&includePrePost=false&events=div%2Csplits"
-    )
-    req = urllib.request.Request(
-        url,
-        headers={
-            "User-Agent": "Mozilla/5.0 StockSignals/1.0",
-            "Accept": "application/json",
-        },
-    )
-    with urllib.request.urlopen(req, timeout=20) as resp:
-        payload = json.load(resp)
+    payload = None
+    last_error = None
+
+    # Yahoo exposes two equivalent chart hosts. Use query2 as an automatic
+    # fallback so a transient query1/CDN failure does not stop the feed.
+    for host in ("query1.finance.yahoo.com", "query2.finance.yahoo.com"):
+        try:
+            url = (
+                f"https://{host}/v8/finance/chart/"
+                + urllib.parse.quote(symbol)
+                + "?range=6mo&interval=1d&includePrePost=false&events=div%2Csplits"
+            )
+            req = urllib.request.Request(
+                url,
+                headers={
+                    "User-Agent": "Mozilla/5.0 StockSignals/1.0",
+                    "Accept": "application/json",
+                    "Cache-Control": "no-cache",
+                },
+            )
+            with urllib.request.urlopen(req, timeout=20) as resp:
+                payload = json.load(resp)
+            if payload.get("chart", {}).get("result"):
+                break
+        except Exception as e:
+            last_error = e
+            payload = None
+
+    if not payload or not payload.get("chart", {}).get("result"):
+        raise RuntimeError(f"Market data fetch failed for {symbol}: {type(last_error).__name__}")
 
     result = payload["chart"]["result"][0]
     timestamps = result["timestamp"]
@@ -82,6 +98,41 @@ def midpoint(bars, window, end_idx):
 def avg(values):
     vals = [x for x in values if x is not None]
     return sum(vals) / len(vals) if vals else None
+
+
+def expected_completed_weekday(now):
+    d = now.date()
+
+    # Before the Tokyo close, today's bar is not expected yet.
+    if d.weekday() < 5 and (now.hour, now.minute) < (15, 40):
+        d -= timedelta(days=1)
+
+    while d.weekday() >= 5:
+        d -= timedelta(days=1)
+
+    return d
+
+
+def business_day_gap(data_date, now):
+    """Weekday gap to the latest session we should reasonably expect.
+
+    This intentionally tolerates one missing weekday to avoid false alarms on
+    Japanese market holidays; two or more missing weekdays is treated as stale.
+    """
+    d = datetime.fromisoformat(data_date).date()
+    expected = expected_completed_weekday(now)
+
+    if d >= expected:
+        return 0
+
+    gap = 0
+    cursor = d + timedelta(days=1)
+    while cursor <= expected:
+        if cursor.weekday() < 5:
+            gap += 1
+        cursor += timedelta(days=1)
+
+    return gap
 
 
 def fmt_yen(x):
@@ -436,13 +487,25 @@ def main():
     now = datetime.now(JST)
     latest_date = max(dates) if dates else "unknown"
 
+    lags = [business_day_gap(d, now) for d in dates]
+    max_lag = max(lags) if lags else None
+
+    if not dates:
+        market_status = "unavailable"
+    elif len(dates) != len(watchlist["stocks"]):
+        market_status = "partial"
+    elif max_lag and max_lag >= 1:
+        market_status = "lagging"
+    else:
+        market_status = "updated"
+
     output = {
         "updated": now.strftime("%Y-%m-%d %H:%M JST"),
         "generated_at": now.isoformat(timespec="seconds"),
         "market_data_through": f"{latest_date} close" if latest_date != "unknown" else "unknown",
-        "market_status": ("partial" if dates and len(dates) != len(watchlist["stocks"]) else
-                          "unavailable" if not dates else "updated"),
-        "stale": not bool(dates) or any((now.date() - datetime.fromisoformat(d).date()).days > 4 for d in dates),
+        "market_status": market_status,
+        "stale": not bool(dates) or (max_lag is not None and max_lag >= 2),
+        "source_data_lag_business_days": max_lag,
         "signals": signals,
     }
 
