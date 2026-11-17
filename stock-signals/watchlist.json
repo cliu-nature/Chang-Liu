@@ -4,7 +4,7 @@
       "ticker": "9843",
       "symbol": "9843.T",
       "name": "NITORI",
-      "position": "+200",
+      "position": "+300",
       "weekly_plan": {
         "valid_from": "2026-10-23",
         "valid_through": "2026-10-30",
@@ -13,6 +13,12 @@
         "warning_close": 3300,
         "risk_close": 3250,
         "notes": "Protect existing 200-share long; high RSI and October 23 near-low close. Closing-level alerts only."
+      },
+      "last_position_update": {
+        "date": "2026-11-17",
+        "change_shares": 100,
+        "price_jpy": 3682,
+        "resulting_shares": 300
       }
     },
     {
