@@ -1,10 +1,10 @@
 {
-  "updated": "2026-11-17 15:07 JST",
-  "generated_at": "2026-11-17T15:07:26+09:00",
+  "updated": "2026-11-18 02:04 JST",
+  "generated_at": "2026-11-18T02:04:14+09:00",
   "market_data_through": "2026-11-16 close",
-  "market_status": "updated",
+  "market_status": "lagging",
   "stale": false,
-  "source_data_lag_business_days": 0,
+  "source_data_lag_business_days": 1,
   "signals": [
     {
       "ticker": "9843",
