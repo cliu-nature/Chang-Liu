@@ -431,6 +431,33 @@ def analyze(stock, bars, analyst_snapshot):
 
 
 
+def existing_market_date():
+    try:
+        if not OUTPUT.exists():
+            return None
+        previous = json.loads(OUTPUT.read_text(encoding="utf-8"))
+        value = previous.get("market_data_through", "")
+        if not value or value == "unknown":
+            return None
+        return datetime.fromisoformat(value.split()[0]).date()
+    except Exception:
+        return None
+
+
+def refuse_regression(latest_date):
+    """Never let a transient stale quote source overwrite a newer completed session."""
+    previous_date = existing_market_date()
+    if not previous_date or latest_date == "unknown":
+        return False, previous_date
+
+    try:
+        new_date = datetime.fromisoformat(latest_date).date()
+    except Exception:
+        return False, previous_date
+
+    return new_date < previous_date, previous_date
+
+
 def write_failure_feed(error):
     now = datetime.now(JST)
     previous_signals = []
@@ -486,6 +513,21 @@ def main():
 
     now = datetime.now(JST)
     latest_date = max(dates) if dates else "unknown"
+
+    regressed, previous_date = refuse_regression(latest_date)
+    if regressed:
+        # Preserve the last known-good feed instead of replacing it with older market data.
+        previous = json.loads(OUTPUT.read_text(encoding="utf-8"))
+        previous["updated"] = now.strftime("%Y-%m-%d %H:%M JST")
+        previous["generated_at"] = now.isoformat(timespec="seconds")
+        previous["market_status"] = "source_regression_blocked"
+        previous["stale"] = False
+        previous["error"] = (
+            f"Quote source returned {latest_date}, older than existing "
+            f"{previous_date.isoformat()} close; previous signals preserved."
+        )
+        OUTPUT.write_text(json.dumps(previous, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        return
 
     lags = [business_day_gap(d, now) for d in dates]
     max_lag = max(lags) if lags else None
