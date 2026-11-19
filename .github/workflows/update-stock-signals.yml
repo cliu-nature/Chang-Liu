@@ -2,49 +2,82 @@ name: Update Stock Signals
 
 on:
   schedule:
-    # GitHub Actions cron is UTC.
-    # 07:45 UTC = 16:45 JST, after Tokyo market close.
-    # 09:15 UTC = 18:15 JST, backup run for delayed quote publication.
-    - cron: "45 7 * * 1-5"
-    - cron: "15 9 * * 1-5"
-    # 11:30 UTC = 20:30 JST, final backup run.
-    - cron: "30 11 * * 1-5"
+    - cron: "45 7 * * 1-5"   # 16:45 JST
+    - cron: "15 9 * * 1-5"   # 18:15 JST
+    - cron: "30 11 * * 1-5"  # 20:30 JST
   workflow_dispatch:
   push:
+    branches: [main]
     paths:
+      - "stock-signals/*.py"
+      - "stock-signals/requirements.txt"
       - "stock-signals/watchlist.json"
       - "stock-signals/analyst_snapshot.json"
-      - "stock-signals/update_signals.py"
       - ".github/workflows/update-stock-signals.yml"
+  pull_request:
+    paths:
+      - "stock-signals/**"
+      - ".github/workflows/*stock-signals.yml"
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  update:
+  test:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - run: python -m pip install -r stock-signals/requirements.txt
+      - run: python -m unittest discover -s stock-signals -v
+      - run: |
+          node --input-type=module --check < stock-signals/scriptable-widget.js
+          node stock-signals/test-widget.cjs
 
-      - name: Update signals
-        run: python stock-signals/update_signals.py
-
-      - name: Commit updated feed
+  update:
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    permissions:
+      contents: write
+    concurrency:
+      group: stock-signals-main-writer
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate, update and publish feed
+        shell: bash
         run: |
-          if git diff --quiet -- stock-signals/signals.json; then
-            echo "No signal changes to commit."
-            exit 0
-          fi
-
           git config user.name "stock-signals-bot"
           git config user.email "stock-signals-bot@users.noreply.github.com"
-          git add stock-signals/signals.json
-          git commit -m "Update stock signals"
-          git push
+          feed=stock-signals/signals.json
+          for attempt in 1 2 3; do
+            git fetch origin +refs/heads/main:refs/remotes/origin/main
+            git reset --hard origin/main
+            python -m pip install -r stock-signals/requirements.txt
+            python -m unittest discover -s stock-signals -v
+            status=0
+            python stock-signals/update_signals.py || status=$?
+            if git diff --quiet -- "$feed"; then
+              exit "$status"
+            fi
+            git add "$feed"
+            git commit -m "Update stock signals"
+            if git push origin HEAD:refs/heads/main; then
+              python -c 'import json; d=json.load(open("stock-signals/signals.json")); print("Published", d["market_data_through"], d["pipeline_status"])' >> "$GITHUB_STEP_SUMMARY"
+              exit "$status"
+            fi
+            echo "::warning::Push failed (attempt $attempt); recomputing from the remote baseline"
+          done
+          echo "::error::Could not publish stock signals"
+          exit 1

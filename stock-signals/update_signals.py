@@ -1,91 +1,17 @@
+import argparse
 import json
 import math
 import os
-import urllib.request
-from datetime import datetime, timezone, timedelta
+import tempfile
+from datetime import date, datetime
 from pathlib import Path
+
+from market_data import HOSTS, JST, fetch_chart, market_context, session_lag
 
 BASE = Path(__file__).resolve().parent
 WATCHLIST = BASE / "watchlist.json"
 ANALYSTS = BASE / "analyst_snapshot.json"
 OUTPUT = BASE / "signals.json"
-JST = timezone(timedelta(hours=9))
-
-
-def fetch_chart(symbol):
-    payload = None
-    last_error = None
-
-    # Yahoo exposes two equivalent chart hosts. Use query2 as an automatic
-    # fallback so a transient query1/CDN failure does not stop the feed.
-    for host in ("query1.finance.yahoo.com", "query2.finance.yahoo.com"):
-        try:
-            url = (
-                f"https://{host}/v8/finance/chart/"
-                + urllib.parse.quote(symbol)
-                + "?range=6mo&interval=1d&includePrePost=false&events=div%2Csplits"
-            )
-            req = urllib.request.Request(
-                url,
-                headers={
-                    "User-Agent": "Mozilla/5.0 StockSignals/1.0",
-                    "Accept": "application/json",
-                    "Cache-Control": "no-cache",
-                },
-            )
-            with urllib.request.urlopen(req, timeout=20) as resp:
-                payload = json.load(resp)
-            if payload.get("chart", {}).get("result"):
-                break
-        except Exception as e:
-            last_error = e
-            payload = None
-
-    if not payload or not payload.get("chart", {}).get("result"):
-        raise RuntimeError(f"Market data fetch failed for {symbol}: {type(last_error).__name__}")
-
-    result = payload["chart"]["result"][0]
-    timestamps = result["timestamp"]
-    q = result["indicators"]["quote"][0]
-    adj = result.get("indicators", {}).get("adjclose", [{}])[0].get("adjclose")
-
-    bars = []
-    now_jst = datetime.now(JST)
-    today_jst = now_jst.date()
-    market_closed = (now_jst.hour, now_jst.minute) >= (15, 40)
-
-    for i, ts in enumerate(timestamps):
-        dt = datetime.fromtimestamp(ts, tz=timezone.utc).astimezone(JST)
-        # Include today's session only after the Tokyo market has fully closed.
-        # Weekend runs can safely include the last completed weekday.
-        if dt.date() > today_jst or (dt.date() == today_jst and not market_closed):
-            continue
-
-        o = q["open"][i]
-        h = q["high"][i]
-        l = q["low"][i]
-        c = q["close"][i]
-        v = q["volume"][i]
-
-        if None in (h, l, c):
-            continue
-
-        bars.append(
-            {
-                "date": dt.date().isoformat(),
-                "open": o,
-                "high": h,
-                "low": l,
-                "close": c,
-                "volume": v or 0,
-                "adjclose": adj[i] if adj and i < len(adj) else c,
-            }
-        )
-
-    if len(bars) < 60:
-        raise RuntimeError(f"Not enough daily data for {symbol}: {len(bars)} bars")
-
-    return bars
 
 
 def midpoint(bars, window, end_idx):
@@ -100,56 +26,11 @@ def avg(values):
     return sum(vals) / len(vals) if vals else None
 
 
-def expected_completed_weekday(now):
-    d = now.date()
-
-    # Before the Tokyo close, today's bar is not expected yet.
-    if d.weekday() < 5 and (now.hour, now.minute) < (15, 40):
-        d -= timedelta(days=1)
-
-    while d.weekday() >= 5:
-        d -= timedelta(days=1)
-
-    return d
-
-
-def business_day_gap(data_date, now):
-    """Weekday gap to the latest session we should reasonably expect.
-
-    This intentionally tolerates one missing weekday to avoid false alarms on
-    Japanese market holidays; two or more missing weekdays is treated as stale.
-    """
-    d = datetime.fromisoformat(data_date).date()
-    expected = expected_completed_weekday(now)
-
-    if d >= expected:
-        return 0
-
-    gap = 0
-    cursor = d + timedelta(days=1)
-    while cursor <= expected:
-        if cursor.weekday() < 5:
-            gap += 1
-        cursor += timedelta(days=1)
-
-    return gap
-
-
 def fmt_yen(x):
     if x is None or not math.isfinite(x):
         return "-"
     return f"¥{x:,.0f}"
 
-
-
-def load_analyst_snapshot():
-    if not ANALYSTS.exists():
-        return {"stocks": {}, "expires_after_days": 0}
-    try:
-        with ANALYSTS.open("r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return {"stocks": {}, "expires_after_days": 0}
 
 
 def shift_strength(value, steps):
@@ -160,13 +41,13 @@ def shift_strength(value, steps):
     return ladder[idx]
 
 
-def analyst_overlay(ticker, close, bullish, bearish, tenkan, kijun, snapshot):
+def analyst_overlay(ticker, close, bullish, bearish, tenkan, kijun, snapshot, now):
     item = (snapshot.get("stocks") or {}).get(str(ticker))
     if not item:
         return {
             "fresh": False,
             "stance": "UNAVAILABLE",
-            "alignment": "TECHNICAL ONLY",
+            "alignment": "NEUTRAL",
             "target_price": None,
             "target_upside_pct": None,
             "revision_momentum": "UNKNOWN",
@@ -177,7 +58,7 @@ def analyst_overlay(ticker, close, bullish, bearish, tenkan, kijun, snapshot):
     try:
         as_of = datetime.fromisoformat(item["as_of"]).date()
         expiry = int(snapshot.get("expires_after_days", 10))
-        age_days = (datetime.now(JST).date() - as_of).days
+        age_days = (now.astimezone(JST).date() - as_of).days
         fresh = 0 <= age_days <= expiry
     except Exception:
         fresh = False
@@ -187,23 +68,13 @@ def analyst_overlay(ticker, close, bullish, bearish, tenkan, kijun, snapshot):
     if target is not None and close:
         upside = (float(target) / float(close) - 1.0) * 100.0
 
-    if not fresh:
-        return {
-            "fresh": False,
-            "stance": item.get("stance", "STALE"),
-            "alignment": "STALE — IGNORED",
-            "target_price": target,
-            "target_upside_pct": round(upside, 1) if upside is not None else None,
-            "revision_momentum": item.get("revision_momentum", "UNKNOWN"),
-            "as_of": item.get("as_of"),
-            "strength_delta": 0,
-        }
-
     score = int(item.get("stance_score", 0))
     price_bullish = bullish and close >= tenkan and close >= kijun
     price_bearish = bearish or (close < tenkan and close < kijun)
 
-    if score > 0:
+    if not fresh:
+        alignment, delta = "STALE — IGNORED", 0
+    elif score > 0:
         if price_bullish:
             alignment, delta = "CONFIRMS", 1
         elif price_bearish:
@@ -221,7 +92,7 @@ def analyst_overlay(ticker, close, bullish, bearish, tenkan, kijun, snapshot):
         alignment, delta = "NEUTRAL", 0
 
     return {
-        "fresh": True,
+        "fresh": fresh,
         "stance": item.get("stance", "NEUTRAL"),
         "raw_consensus": item.get("raw_consensus"),
         "alignment": alignment,
@@ -236,10 +107,9 @@ def analyst_overlay(ticker, close, bullish, bearish, tenkan, kijun, snapshot):
     }
 
 
-def analyze(stock, bars, analyst_snapshot):
+def analyze(stock, bars, analyst_snapshot, now):
     i = len(bars) - 1
     last = bars[i]
-    prev = bars[i - 1]
 
     tenkan = midpoint(bars, 9, i)
     kijun = midpoint(bars, 26, i)
@@ -266,7 +136,9 @@ def analyze(stock, bars, analyst_snapshot):
 
     close = last["close"]
     position = str(stock.get("position", "WATCH")).upper()
-    has_core = position not in ("WATCH", "0", "NONE", "-") and not position.startswith("-")
+    is_short = position.startswith("-") and position != "-"
+    has_core = position not in ("WATCH", "0", "NONE", "-") and not is_short
+    neutral_signal = "HOLD" if has_core or is_short else "WAIT"
 
     breakout = close > recent_high and close > tenkan and close > kijun
     breakdown = close < recent_low and close < tenkan and close < kijun
@@ -284,7 +156,7 @@ def analyze(stock, bars, analyst_snapshot):
 
     # Deterministic signal framework matching the widget rules.
     if breakout:
-        signal = "ADD" if has_core else "LONG"
+        signal = "COVER" if is_short else "ADD" if has_core else "LONG"
         strength = "A" if volume_ratio >= 1.15 else "B+"
         trigger = f"Breakout confirmed > {fmt_yen(recent_high)}"
         invalid = f"Watch < {fmt_yen(kijun)}"
@@ -302,7 +174,7 @@ def analyze(stock, bars, analyst_snapshot):
             f"and below Tenkan/Kijun."
         )
     elif bullish:
-        signal = "HOLD" if has_core else "WAIT"
+        signal = neutral_signal
         strength = "B+"
         trigger = f"Add/Long > {fmt_yen(recent_high)}"
         invalid = f"Watch < {fmt_yen(kijun)}"
@@ -311,7 +183,7 @@ def analyze(stock, bars, analyst_snapshot):
             f"Kijun; a fresh breakout is still required for a stronger entry."
         )
     elif bearish:
-        signal = "HOLD" if has_core else "WAIT"
+        signal = neutral_signal
         strength = "B"
         trigger = f"Short/Reduce < {fmt_yen(recent_low)}"
         invalid = f"Watch > {fmt_yen(kijun)}"
@@ -320,7 +192,7 @@ def analyze(stock, bars, analyst_snapshot):
             f"wait for a confirmed breakdown before acting."
         )
     else:
-        signal = "HOLD" if has_core else "WAIT"
+        signal = neutral_signal
         strength = "C"
         trigger = f"Long > {fmt_yen(recent_high)} / Short < {fmt_yen(recent_low)}"
         invalid = f"Kijun {fmt_yen(kijun)}"
@@ -330,68 +202,9 @@ def analyze(stock, bars, analyst_snapshot):
         )
 
 
-    # Temporary, auditable risk-watch overlay for the week of October 26-30.
-    # Only use completed daily bars; never translate an intraday touch into a signal.
-    plan = stock.get("weekly_plan") or {}
-    if plan.get("valid_from", "9999") <= last["date"] <= plan.get("valid_through", "0000"):
-        mode = plan.get("mode")
-        if mode == "long_exit_watch" and has_core:
-            warning = float(plan["warning_close"])
-            risk = float(plan["risk_close"])
-            breakout_level = float(plan["bullish_close"])
-            close_near_low = (last["high"] > last["low"] and
-                              (last["high"] - close) / (last["high"] - last["low"]) >= 0.75)
-            rejection = (last["high"] >= breakout_level and close < breakout_level and close_near_low)
-            if close < risk:
-                signal, strength = "REDUCE", "B"
-                trigger = f"Exit risk: close < {fmt_yen(risk)}"
-                invalid = f"Recover > {fmt_yen(warning)}"
-                rationale = "Long position risk elevated: closing price broke the deeper risk level."
-            elif close < warning:
-                signal, strength = "REDUCE", "C"
-                trigger = f"Exit watch: close < {fmt_yen(warning)}"
-                invalid = f"Recover > {fmt_yen(warning)}"
-                rationale = "Long position showing weakness; reassess risk before the next session."
-            elif close > breakout_level:
-                signal, strength = "HOLD", "B+"
-                trigger = f"Breakout holds > {fmt_yen(breakout_level)}"
-                invalid = f"Exit watch < {fmt_yen(warning)}"
-                rationale = "Price confirmed a new closing breakout; monitor follow-through, not an automatic add."
-            else:
-                signal, strength = "HOLD", "C" if rejection else "B-"
-                trigger = f"Exit watch < {fmt_yen(warning)}"
-                invalid = f"Bullish > {fmt_yen(breakout_level)}"
-                rationale = ("Intraday breakout rejected; closed near session low. Protect long-position risk."
-                             if rejection else
-                             "Holding above warning level; watch for close below warning or renewed breakout.")
-        elif mode == "short_confirmation_watch" and not has_core:
-            watch = float(plan["watch_below"])
-            confirm = float(plan["confirm_below"])
-            invalidate = float(plan["invalid_above"])
-            if close > invalidate:
-                signal, strength = "WAIT", "C"
-                trigger = f"No short above {fmt_yen(invalidate)}"
-                invalid = f"Watch again < {fmt_yen(watch)}"
-                rationale = "Upside breakout contradicts the short thesis; no bearish confirmation."
-            elif (close < confirm and prev["close"] < confirm and
-                  close < kijun and volume_ratio >= 1.10):
-                signal, strength = "SHORT", "B"
-                trigger = f"2 closes < {fmt_yen(confirm)}"
-                invalid = f"Breakdown invalid > {fmt_yen(watch)}"
-                rationale = "Bearish breakdown confirmed by two closes, Kijun and volume; review short risks."
-            elif close < watch:
-                signal, strength = "WAIT", "C"
-                trigger = f"Confirm < {fmt_yen(confirm)}"
-                invalid = f"No short > {fmt_yen(invalidate)}"
-                rationale = "Initial bearish warning only; wait for sustained downside confirmation."
-            else:
-                signal, strength = "WAIT", "C"
-                trigger = f"Short watch < {fmt_yen(watch)}"
-                invalid = f"No short > {fmt_yen(invalidate)}"
-                rationale = "Price has not broken the watch level; shorting the uptrend is premature."
-
     analyst = analyst_overlay(
-        stock["ticker"], close, bullish, bearish, tenkan, kijun, analyst_snapshot
+        stock["ticker"], close, bullish or breakout, bearish or breakdown,
+        tenkan, kijun, analyst_snapshot, now
     )
     strength = shift_strength(strength, analyst.get("strength_delta", 0))
 
@@ -416,7 +229,12 @@ def analyze(stock, bars, analyst_snapshot):
         "cloud_bottom": round(cloud_bottom, 2) if cloud_bottom is not None else None,
         "volume_ratio_20d": round(volume_ratio, 2),
         "data_as_of": last["date"],
-        "weekly_plan_through": plan.get("valid_through") if plan else None,
+        "weekly_plan_through": None,
+        "prior_20_session_high": recent_high,
+        "prior_20_session_low": recent_low,
+        "breakout": breakout,
+        "breakdown": breakdown,
+        "trend_regime": "bullish" if bullish else "bearish" if bearish else "mixed",
         "analyst_stance": analyst.get("stance"),
         "analyst_alignment": analyst.get("alignment"),
         "analyst_fresh": analyst.get("fresh"),
@@ -427,137 +245,165 @@ def analyze(stock, bars, analyst_snapshot):
         "analyst_buy_count": analyst.get("buy_count"),
         "analyst_neutral_count": analyst.get("neutral_count"),
         "analyst_sell_count": analyst.get("sell_count"),
-    }, last["date"]
+    }
 
 
+def read_json(path):
+    return json.loads(path.read_text(encoding="utf-8"))
 
-def existing_market_date():
-    try:
-        if not OUTPUT.exists():
-            return None
-        previous = json.loads(OUTPUT.read_text(encoding="utf-8"))
-        value = previous.get("market_data_through", "")
-        if not value or value == "unknown":
-            return None
-        return datetime.fromisoformat(value.split()[0]).date()
-    except Exception:
+
+def parse_market_date(value):
+    if value in (None, "unknown"):
         return None
+    return date.fromisoformat(value.removesuffix(" close")).isoformat()
 
 
-def refuse_regression(latest_date):
-    """Never let a transient stale quote source overwrite a newer completed session."""
-    previous_date = existing_market_date()
-    if not previous_date or latest_date == "unknown":
-        return False, previous_date
+def published_date(feed):
+    return parse_market_date(feed.get("market_data_through"))
+
+
+def previous_watermark(feed):
+    dates = [published_date(feed)]
+    dates.extend(parse_market_date(row.get("data_as_of")) for row in feed.get("signals", []))
+    return max((day for day in dates if day), default=None)
+
+
+def update_feed(now, previous, watchlist_path=WATCHLIST, analyst_path=ANALYSTS):
+    context = {}
+    expected = None
+    results = []
+    diagnostics = {}
+    failed = []
+    blocked = []
+    status = "error"
+    error = None
+    previous_date = published_date(previous)
+    watermark = previous_watermark(previous)
+    source = previous.get("source", "yahoo_finance" if previous_date else None)
 
     try:
-        new_date = datetime.fromisoformat(latest_date).date()
-    except Exception:
-        return False, previous_date
+        context = market_context(now)
+        expected = context["expected_market_date"]
+        print(f"Now JST={now.isoformat()} expected={expected} previous={previous_date} watermark={watermark}")
+        stocks = read_json(watchlist_path)["stocks"]
+        if not stocks or len({stock["ticker"] for stock in stocks}) != len(stocks):
+            raise ValueError("Watchlist must contain distinct stocks")
+        try:
+            snapshot = read_json(analyst_path)
+            if not isinstance(snapshot.get("stocks"), dict):
+                raise ValueError("Invalid analyst snapshot")
+        except (OSError, ValueError, AttributeError) as exc:
+            snapshot = {}
+            diagnostics["analyst_error"] = str(exc)
 
-    return new_date < previous_date, previous_date
+        diagnostics["symbols"] = {}
+        for stock in stocks:
+            symbol = stock["symbol"]
+            bars, attempts = fetch_chart(symbol, expected, now)
+            diagnostics["symbols"][symbol] = attempts
+            print(f"{symbol}: {json.dumps(attempts, ensure_ascii=False)}")
+            if bars is None:
+                failed.append(symbol)
+                observed = [item["latest_bar"] for item in attempts if item.get("latest_bar")]
+                if watermark and observed and max(observed) < watermark:
+                    blocked.append(symbol)
+                continue
+            try:
+                signal = analyze(stock, bars, snapshot, now)
+            except (TypeError, ValueError, AttributeError) as exc:
+                diagnostics.setdefault("analyst_errors", {})[symbol] = str(exc)
+                signal = analyze(stock, bars, {}, now)
+            results.append(signal)
+            print(f"{symbol}: analyst={signal['analyst_alignment']} fresh={signal['analyst_fresh']}")
 
+        if (watermark and expected < watermark) or blocked:
+            status = "source_regression_blocked"
+            error = f"Source regressed below {watermark}: {', '.join(blocked) or expected}"
+        elif failed:
+            status = "partial" if results else "error"
+            if all(any(a["validation"] == "behind" for a in diagnostics["symbols"][s])
+                   for s in failed) and not results:
+                status = "lagging"
+            error = f"Expected completed session {expected} unavailable for {', '.join(failed)}"
+        elif diagnostics.get("analyst_error") or diagnostics.get("analyst_errors"):
+            status = "partial"
+            error = "Analyst snapshot could not be validated"
+        else:
+            status = "ok"
+            previous_date = expected
+            source = "yahoo_finance"
+    except (OSError, ValueError, TypeError, KeyError, RuntimeError) as exc:
+        status = "error"
+        error = f"{type(exc).__name__}: {exc}"
 
-def write_failure_feed(error):
-    now = datetime.now(JST)
-    previous_signals = []
-    previous_data_through = "unknown"
-    try:
-        if OUTPUT.exists():
-            previous = json.loads(OUTPUT.read_text(encoding="utf-8"))
-            previous_signals = previous.get("signals", [])
-            previous_data_through = previous.get("market_data_through", "unknown")
-    except Exception:
-        pass
-
-    output = {
+    return {
         "updated": now.strftime("%Y-%m-%d %H:%M JST"),
         "generated_at": now.isoformat(timespec="seconds"),
-        "market_data_through": previous_data_through,
-        "market_status": "error",
-        "stale": True,
-        "error": type(error).__name__,
-        "signals": previous_signals,
+        "market_data_through": f"{previous_date} close" if previous_date else "unknown",
+        "expected_market_date": expected,
+        "market_status": context.get("market_status", "unknown"),
+        "next_update_due_at": context.get("next_update_due_at"),
+        "stale": status != "ok",
+        "source": source,
+        "source_data_lag_business_days": session_lag(previous_date, expected) if expected else None,
+        "pipeline_status": status,
+        "error": error,
+        "diagnostics": {"previous_market_date": watermark, **diagnostics},
+        "signals": results if status == "ok" else previous.get("signals", []),
     }
-    OUTPUT.write_text(json.dumps(output, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def write_atomic(path, feed):
+    contents = json.dumps(feed, ensure_ascii=False, indent=2, allow_nan=False) + "\n"
+    temporary = tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", newline="\n",
+                                            dir=path.parent, delete=False)
+    temporary_path = Path(temporary.name)
+    try:
+        with temporary:
+            temporary.write(contents)
+        os.replace(temporary_path, path)
+    finally:
+        temporary_path.unlink(missing_ok=True)
+
+
+def check_health(feed, now):
+    expected = market_context(now)["expected_market_date"]
+    rows = feed.get("signals", [])
+    stocks = read_json(WATCHLIST)["stocks"]
+    published = {row["ticker"]: row for row in rows}
+    coherent = (len(published) == len(rows) == len(stocks)
+                and all(published.get(stock["ticker"], {}).get("data_as_of") == expected
+                        and published[stock["ticker"]]["position"] == stock["position"]
+                        for stock in stocks))
+    generated = datetime.fromisoformat(feed["generated_at"])
+    print(f"Health: expected={expected} published={published_date(feed)} "
+          f"generated={generated.isoformat()} status={feed.get('pipeline_status')} "
+          f"coherent={coherent} error={feed.get('error')}")
+    return (
+        published_date(feed) == feed.get("expected_market_date") == expected
+        and generated <= now and coherent and feed.get("stale") is False
+        and feed.get("pipeline_status") == "ok"
+    )
 
 
 def main():
-    with WATCHLIST.open("r", encoding="utf-8") as f:
-        watchlist = json.load(f)
-
-    analyst_snapshot = load_analyst_snapshot()
-
-    signals = []
-    dates = []
-
-    for stock in watchlist["stocks"]:
-        try:
-            bars = fetch_chart(stock["symbol"])
-            signal, data_date = analyze(stock, bars, analyst_snapshot)
-            signals.append(signal)
-            dates.append(data_date)
-        except Exception as e:
-            signals.append(
-                {
-                    "ticker": stock["ticker"],
-                    "name": stock["name"],
-                    "signal": "WAIT",
-                    "position": stock.get("position", "WATCH"),
-                    "trigger": "Data unavailable",
-                    "invalid": "-",
-                    "rationale": f"Automatic market-data update failed: {type(e).__name__}",
-                    "strength": "D",
-                }
-            )
-
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--output", type=Path, default=OUTPUT)
+    parser.add_argument("--check", action="store_true", help="Check existing feed without writing")
+    args = parser.parse_args()
     now = datetime.now(JST)
-    latest_date = max(dates) if dates else "unknown"
+    if args.check:
+        return 0 if check_health(read_json(args.output), now) else 1
 
-    regressed, previous_date = refuse_regression(latest_date)
-    if regressed:
-        # Preserve the last known-good feed instead of replacing it with older market data.
-        previous = json.loads(OUTPUT.read_text(encoding="utf-8"))
-        previous["updated"] = now.strftime("%Y-%m-%d %H:%M JST")
-        previous["generated_at"] = now.isoformat(timespec="seconds")
-        previous["market_status"] = "source_regression_blocked"
-        previous["stale"] = False
-        previous["error"] = (
-            f"Quote source returned {latest_date}, older than existing "
-            f"{previous_date.isoformat()} close; previous signals preserved."
-        )
-        OUTPUT.write_text(json.dumps(previous, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-        return
-
-    lags = [business_day_gap(d, now) for d in dates]
-    max_lag = max(lags) if lags else None
-
-    if not dates:
-        market_status = "unavailable"
-    elif len(dates) != len(watchlist["stocks"]):
-        market_status = "partial"
-    elif max_lag and max_lag >= 1:
-        market_status = "lagging"
-    else:
-        market_status = "updated"
-
-    output = {
-        "updated": now.strftime("%Y-%m-%d %H:%M JST"),
-        "generated_at": now.isoformat(timespec="seconds"),
-        "market_data_through": f"{latest_date} close" if latest_date != "unknown" else "unknown",
-        "market_status": market_status,
-        "stale": not bool(dates) or (max_lag is not None and max_lag >= 2),
-        "source_data_lag_business_days": max_lag,
-        "signals": signals,
-    }
-
-    OUTPUT.write_text(json.dumps(output, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    # Refuse to publish across an unreadable baseline. Its watermark is unknown.
+    previous = read_json(args.output) if args.output.exists() else {}
+    feed = update_feed(now, previous)
+    write_atomic(args.output, feed)
+    print(f"Pipeline={feed['pipeline_status']} published={feed['market_data_through']} "
+          f"lag={feed['source_data_lag_business_days']} error={feed['error']}")
+    # The writer publishes diagnostics before reporting an unhealthy run.
+    return 0 if feed["pipeline_status"] == "ok" else 1
 
 
 if __name__ == "__main__":
-    # urllib.parse is imported here to keep the top import list compact.
-    import urllib.parse
-    try:
-        main()
-    except Exception as e:
-        write_failure_feed(e)
+    raise SystemExit(main())

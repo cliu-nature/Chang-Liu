@@ -38,11 +38,26 @@ function compactDate(v) {
   return m[4] ? `${m[2]}/${m[3]} ${m[4]}` : `${m[2]}/${m[3]}`;
 }
 
-function ageHours(iso) {
-  if (!iso) return Infinity;
-  const t = new Date(iso).getTime();
-  if (!Number.isFinite(t)) return Infinity;
-  return (Date.now() - t) / 3600000;
+const SIGNALS = ["ADD", "LONG", "HOLD", "WAIT", "REDUCE", "SHORT", "COVER"];
+const STRENGTHS = ["A+", "A", "B+", "B", "B-", "C", "D"];
+const EXPECTED_TICKERS = ["9843", "6460"];
+const MAX_FEED_AGE_MS = 10 * 86400000;
+
+function marketDate(value) {
+  return typeof value === "string"
+    ? value.match(/^(\d{4}-\d{2}-\d{2})(?: close)?$/)?.[1] || ""
+    : "";
+}
+
+function feedShape(data) {
+  return data && Array.isArray(data.signals)
+    && data.signals.every(row => row && typeof row.ticker === "string")
+    && (marketDate(data.market_data_through) || data.stale === true);
+}
+
+function effectiveDate(data) {
+  return [marketDate(data.market_data_through),
+    ...data.signals.map(row => marketDate(row.data_as_of))].sort().pop();
 }
 
 async function fetchFresh() {
@@ -56,11 +71,24 @@ async function fetchFresh() {
   };
 
   const data = await req.loadJSON();
-  if (!data || !Array.isArray(data.signals)) {
+  if (!feedShape(data)) {
     throw new Error("Invalid signals.json");
   }
 
-  fm.writeString(cachePath, JSON.stringify(data));
+  const cached = loadCache()?.data;
+  if (cached) {
+    const current = effectiveDate(data);
+    const stored = effectiveDate(cached);
+    if (current < stored || (current === stored
+        && Date.parse(data.generated_at) < Date.parse(cached.generated_at))) {
+      throw new Error("Raw GitHub response regressed behind the local feed");
+    }
+  }
+  try {
+    fm.writeString(cachePath, JSON.stringify(data));
+  } catch (e) {
+    console.log("Cache write failed: " + e);
+  }
   return { data, source: "LIVE" };
 }
 
@@ -68,7 +96,7 @@ function loadCache() {
   if (!fm.fileExists(cachePath)) return null;
   try {
     const data = JSON.parse(fm.readString(cachePath));
-    if (!data || !Array.isArray(data.signals)) return null;
+    if (!feedShape(data)) return null;
     return { data, source: "CACHE" };
   } catch (_) {
     return null;
@@ -84,7 +112,7 @@ async function loadData() {
     if (cached) return cached;
     return {
       data: {
-        updated: new Date().toISOString(),
+        updated: null,
         generated_at: null,
         market_data_through: "unavailable",
         market_status: "error",
@@ -97,14 +125,23 @@ async function loadData() {
   }
 }
 
-function isUnsafeFeed(data, source) {
-  if (source !== "LIVE") return true;
-  if (data.stale === true) return true;
-  if (["error", "unavailable"].includes(String(data.market_status || "").toLowerCase())) return true;
+function isUnsafeFeed(data, source, now = Date.now()) {
+  if (source !== "LIVE" || data.stale !== false || data.pipeline_status !== "ok"
+      || data.error || data.source_data_lag_business_days !== 0) return true;
 
-  // If the backend itself has not generated anything for 36h, warn even if stale was mis-set.
-  if (ageHours(data.generated_at) > 36) return true;
-  return false;
+  const day = marketDate(data.market_data_through);
+  const generation = Date.parse(data.generated_at);
+  const due = Date.parse(data.next_update_due_at);
+  if (!day || day !== data.expected_market_date
+      || !Number.isFinite(generation) || generation > now + 5 * 60000
+      || !Number.isFinite(due) || due <= generation || now >= due
+      || now - generation > MAX_FEED_AGE_MS) return true;
+
+  const tickers = new Set(data.signals.map(row => row.ticker));
+  return data.signals.length !== tickers.size
+    || !EXPECTED_TICKERS.every(ticker => tickers.has(ticker))
+    || data.signals.some(row => row.data_as_of !== day
+      || !SIGNALS.includes(row.signal) || !STRENGTHS.includes(row.strength));
 }
 
 function addHeader(widget, data, source, unsafe) {
@@ -117,7 +154,7 @@ function addHeader(widget, data, source, unsafe) {
 
   row.addSpacer();
 
-  const badge = row.addText(source === "LIVE" ? "JP" : source);
+  const badge = row.addText(source);
   badge.font = Font.boldSystemFont(8);
   badge.textColor = unsafe ? COLORS.orange : COLORS.tertiary;
 
@@ -139,9 +176,9 @@ function addHeader(widget, data, source, unsafe) {
   if (unsafe) {
     widget.addSpacer(5);
     const warn = widget.addText(
-      source === "LIVE"
-        ? "⚠︎ STALE / FEED ERROR — CHECK BEFORE USING"
-        : "⚠︎ CACHED DATA — NOT CURRENT"
+      source === "CACHE" ? "CACHED DATA — NOT CURRENT"
+        : source === "ERROR" ? "FEED UNAVAILABLE"
+        : "STALE / FEED ERROR — CHECK BEFORE USING"
     );
     warn.font = Font.boldSystemFont(8);
     warn.textColor = COLORS.orange;
@@ -185,7 +222,7 @@ function addSignalRow(widget, s, unsafe) {
 
   top.addSpacer(6);
 
-  const sig = top.addText(unsafe ? "CHECK" : String(s.signal || "WAIT"));
+  const sig = top.addText(String(s.signal || "—"));
   sig.font = Font.boldSystemFont(9);
   sig.textColor = unsafe ? COLORS.orange : signalColor(s.signal);
 
@@ -233,7 +270,7 @@ async function createWidget(wrapper) {
 
   const widget = new ListWidget();
   widget.backgroundColor = COLORS.bg;
-  widget.setPadding(12, 14, 10, 14);
+  widget.setPadding(9, 14, 8, 14);
 
   addHeader(widget, data, source, unsafe);
 
