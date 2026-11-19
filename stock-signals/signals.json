@@ -1,6 +1,6 @@
 {
-  "updated": "2026-11-20 01:47 JST",
-  "generated_at": "2026-11-20T01:47:00+09:00",
+  "updated": "2026-11-20 03:17 JST",
+  "generated_at": "2026-11-20T03:17:11+09:00",
   "market_data_through": "2026-11-18 close",
   "expected_market_date": "2026-11-19",
   "market_status": "pre_open",
@@ -17,7 +17,7 @@
         {
           "source": "query1.finance.yahoo.com",
           "validation": "error",
-          "http_age": "0",
+          "http_age": "1",
           "last_timestamp": "2026-11-19T09:00:00+09:00",
           "latest_bar": "2026-11-19",
           "error": "ValueError: Incomplete OHLCV: 2026-11-19"
