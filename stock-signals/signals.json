@@ -1,38 +1,52 @@
 {
-  "updated": "2026-11-19 10:36 JST",
-  "generated_at": "2026-11-19T10:36:53+09:00",
+  "updated": "2026-11-20 01:47 JST",
+  "generated_at": "2026-11-20T01:47:00+09:00",
   "market_data_through": "2026-11-18 close",
-  "expected_market_date": "2026-11-18",
-  "market_status": "trading_day",
-  "next_update_due_at": "2026-11-19T16:45:00+09:00",
-  "stale": false,
+  "expected_market_date": "2026-11-19",
+  "market_status": "pre_open",
+  "next_update_due_at": "2026-11-20T16:45:00+09:00",
+  "stale": true,
   "source": "yahoo_finance",
-  "source_data_lag_business_days": 0,
-  "pipeline_status": "ok",
-  "error": null,
+  "source_data_lag_business_days": 1,
+  "pipeline_status": "error",
+  "error": "Expected completed session 2026-11-19 unavailable for 9843.T, 6460.T",
   "diagnostics": {
     "previous_market_date": "2026-11-18",
     "symbols": {
       "9843.T": [
         {
           "source": "query1.finance.yahoo.com",
-          "validation": "ok",
+          "validation": "error",
           "http_age": "0",
           "last_timestamp": "2026-11-19T09:00:00+09:00",
-          "latest_bar": "2026-11-18",
-          "excluded_unfinished_bar": "2026-11-19",
-          "regular_market_time": "2026-11-19T10:21:50+09:00"
+          "latest_bar": "2026-11-19",
+          "error": "ValueError: Incomplete OHLCV: 2026-11-19"
+        },
+        {
+          "source": "query2.finance.yahoo.com",
+          "validation": "error",
+          "http_age": "1",
+          "last_timestamp": "2026-11-19T09:00:00+09:00",
+          "latest_bar": "2026-11-19",
+          "error": "ValueError: Incomplete OHLCV: 2026-11-19"
         }
       ],
       "6460.T": [
         {
           "source": "query1.finance.yahoo.com",
-          "validation": "ok",
+          "validation": "error",
           "http_age": "0",
           "last_timestamp": "2026-11-19T09:00:00+09:00",
-          "latest_bar": "2026-11-18",
-          "excluded_unfinished_bar": "2026-11-19",
-          "regular_market_time": "2026-11-19T10:21:47+09:00"
+          "latest_bar": "2026-11-19",
+          "error": "ValueError: Incomplete OHLCV: 2026-11-19"
+        },
+        {
+          "source": "query2.finance.yahoo.com",
+          "validation": "error",
+          "http_age": "0",
+          "last_timestamp": "2026-11-19T09:00:00+09:00",
+          "latest_bar": "2026-11-19",
+          "error": "ValueError: Incomplete OHLCV: 2026-11-19"
         }
       ]
     }
