@@ -48,6 +48,31 @@ def chart(symbol, latest="2026-11-19"):
     }
 
 
+
+def intraday_chart(symbol, day="2026-11-19"):
+    return {
+        "meta": {
+            "symbol": symbol,
+            "exchangeTimezoneName": "Asia/Tokyo",
+            "currency": "JPY",
+            "regularMarketTime": jst(day + "T15:30").timestamp(),
+        },
+        "timestamp": [
+            jst(day + "T09:00").timestamp(),
+            jst(day + "T15:25").timestamp(),
+        ],
+        "indicators": {
+            "quote": [{
+                "open": [100, 101],
+                "high": [102, 103],
+                "low": [98, 99],
+                "close": [101, 102],
+                "volume": [500, 700],
+            }]
+        },
+    }
+
+
 def snapshot(score, as_of="2026-11-16"):
     return {"expires_after_days": 10, "stocks": {
         "9843": {"as_of": as_of, "stance": "TEST", "stance_score": score,
@@ -98,6 +123,30 @@ class PipelineTests(unittest.TestCase):
                     bars, attempts = market.fetch_chart("9843.T", "2026-11-19", AFTER_CLOSE)
                 self.assertEqual(bars[-1]["date"], "2026-11-19")
                 self.assertEqual(attempts[-1]["source"], market.HOSTS[1])
+
+
+    def test_null_daily_bar_recovers_from_intraday(self):
+        def daily_result(host, symbol):
+            result = chart(symbol)
+            for field in ("open", "high", "low", "close", "volume"):
+                result["indicators"]["quote"][0][field][-1] = None
+            return result, "0"
+
+        with patch.object(market, "fetch_result", side_effect=daily_result), \
+             patch.object(market, "fetch_intraday_result",
+                          side_effect=lambda host, symbol: (intraday_chart(symbol), "0")):
+            bars, attempts = market.fetch_chart("9843.T", "2026-11-19", AFTER_CLOSE)
+
+        self.assertEqual(bars[-1], {
+            "date": "2026-11-19",
+            "open": 100,
+            "high": 103,
+            "low": 98,
+            "close": 102,
+            "volume": 1200,
+        })
+        self.assertEqual(attempts[-1]["validation"], "ok")
+        self.assertEqual(attempts[-1]["fallback"], "intraday_aggregate")
 
     def test_both_hosts_fail_and_failure_publishes_diagnostics(self):
         with patch.object(market, "fetch_result", side_effect=OSError("timeout")):
