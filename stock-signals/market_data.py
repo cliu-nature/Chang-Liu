@@ -255,8 +255,18 @@ def fetch_chart(symbol, expected, now):
             return bars, attempts
 
     # Recovery path: Yahoo occasionally publishes a placeholder/null daily bar
-    # while its intraday history is already complete. Rebuild only the expected
-    # session from 5-minute bars and join it to validated prior daily history.
+    # while its intraday history is already complete. Only recover that specific
+    # failure mode; a genuinely lagging daily feed must remain stale.
+    recoverable = any(
+        "Incomplete OHLCV" in attempt.get("error", "")
+        for attempt in attempts
+        if attempt.get("interval") == "1d"
+    )
+    if not recoverable:
+        return None, attempts
+
+    # Rebuild only the expected session from 5-minute bars and join it to
+    # validated prior daily history.
     previous = session_date(calendar().previous_session(expected))
     for host in HOSTS:
         diagnostic = {
