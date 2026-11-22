@@ -93,6 +93,8 @@ class PipelineTests(unittest.TestCase):
         self.assertFalse(feed["stale"])
         self.assertTrue(updater.check_health(feed, AFTER_CLOSE))
         self.assertEqual({row["close"] for row in feed["signals"]}, {100})
+        self.assertEqual({row["cloud_top"] for row in feed["signals"]}, {100})
+        self.assertEqual({row["cloud_bottom"] for row in feed["signals"]}, {100})
         self.assertEqual([row["position"] for row in feed["signals"]], ["+300", "WATCH"])
 
     def test_older_source_retains_coherent_feed(self):
@@ -137,6 +139,7 @@ class PipelineTests(unittest.TestCase):
                           side_effect=lambda host, symbol: (intraday_chart(symbol), "0")):
             bars, attempts = market.fetch_chart("9843.T", "2026-11-19", AFTER_CLOSE)
 
+        self.assertEqual(len(bars), market.HISTORY)
         self.assertEqual(bars[-1], {
             "date": "2026-11-19",
             "open": 100,

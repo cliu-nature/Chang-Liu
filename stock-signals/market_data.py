@@ -191,7 +191,8 @@ def validate_result(result, symbol, expected, now, diagnostic):
         raise ValueError("Misaligned Yahoo timestamp and quote arrays")
 
     cal = calendar()
-    needed = [session_date(s) for s in cal.sessions_window(expected, -(HISTORY - 1))]
+    first = cal.session_offset(expected, -(HISTORY - 1))
+    needed = [session_date(s) for s in cal.sessions_in_range(first, expected)]
     bars = {}
     previous_date = ""
     diagnostic["last_timestamp"] = yahoo_time(timestamps[-1]).isoformat()
@@ -285,7 +286,7 @@ def fetch_chart(symbol, expected, now):
             latest_bar = aggregate_intraday(
                 intraday_result, symbol, expected, now, diagnostic
             )
-            bars = prior_bars + [latest_bar]
+            bars = prior_bars[-(HISTORY - 1):] + [latest_bar]
             if len(bars) < HISTORY:
                 raise ValueError(f"Not enough combined history for {symbol}")
         except (OSError, ValueError, TypeError, KeyError, IndexError, OverflowError) as exc:
