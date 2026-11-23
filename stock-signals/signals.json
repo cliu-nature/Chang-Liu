@@ -1,9 +1,9 @@
 {
-  "updated": "2026-11-23 00:24 JST",
-  "generated_at": "2026-11-23T00:24:41+09:00",
+  "updated": "2026-11-24 04:28 JST",
+  "generated_at": "2026-11-24T04:28:50+09:00",
   "market_data_through": "2026-11-20 close",
   "expected_market_date": "2026-11-20",
-  "market_status": "closed",
+  "market_status": "pre_open",
   "next_update_due_at": "2026-11-24T16:45:00+09:00",
   "stale": false,
   "source": "yahoo_finance",
