@@ -1,6 +1,6 @@
 {
-  "updated": "2026-11-24 09:33 JST",
-  "generated_at": "2026-11-24T09:33:43+09:00",
+  "updated": "2026-11-24 09:37 JST",
+  "generated_at": "2026-11-24T09:37:59+09:00",
   "market_data_through": "2026-11-20 close",
   "expected_market_date": "2026-11-20",
   "market_status": "trading_day",
@@ -18,11 +18,11 @@
           "source": "query1.finance.yahoo.com",
           "validation": "ok",
           "interval": "1d",
-          "http_age": "1",
+          "http_age": "0",
           "last_timestamp": "2026-11-24T09:00:00+09:00",
           "latest_bar": "2026-11-20",
           "excluded_unfinished_bar": "2026-11-24",
-          "regular_market_time": "2026-11-24T09:18:32+09:00"
+          "regular_market_time": "2026-11-24T09:22:54+09:00"
         }
       ],
       "6460.T": [
@@ -34,7 +34,7 @@
           "last_timestamp": "2026-11-24T09:00:00+09:00",
           "latest_bar": "2026-11-20",
           "excluded_unfinished_bar": "2026-11-24",
-          "regular_market_time": "2026-11-24T09:18:24+09:00"
+          "regular_market_time": "2026-11-24T09:22:52+09:00"
         }
       ]
     }
@@ -46,7 +46,7 @@
       "signal": "HOLD",
       "strategy": null,
       "position": "+300",
-      "trigger": "Add/Long > ¥3,737",
+      "trigger": "减仓线：收盘 < ¥3,233",
       "invalid": "Watch < ¥3,456",
       "rationale": "2026-11-20 closed at ¥3,655 with a constructive trend above Kijun; a fresh breakout is still required for a stronger entry. Analyst stance: NEUTRAL; price/analyst alignment: NEUTRAL.",
       "strength": "B+",
@@ -60,6 +60,7 @@
       "weekly_plan_through": null,
       "prior_20_session_high": 3737.0,
       "prior_20_session_low": 3233.0,
+      "reduce_below": 3233.0,
       "breakout": false,
       "breakdown": false,
       "trend_regime": "bullish",
@@ -94,6 +95,7 @@
       "weekly_plan_through": null,
       "prior_20_session_high": 3519.0,
       "prior_20_session_low": 3161.0,
+      "reduce_below": null,
       "breakout": false,
       "breakdown": false,
       "trend_regime": "bullish",
