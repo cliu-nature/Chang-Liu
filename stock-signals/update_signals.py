@@ -202,11 +202,27 @@ def analyze(stock, bars, analyst_snapshot, now):
         )
 
 
+    short_only = stock.get("strategy") == "short_only" and not has_core
+    if short_only:
+        short_level = min(recent_low, tenkan, kijun)
+        if signal != "COVER":
+            trigger = f"Short: close < {fmt_yen(short_level)}"
+            invalid = f"Kijun watch {fmt_yen(kijun)}"
+        if not breakdown and signal != "COVER":
+            signal = neutral_signal
+            strength = "B" if bearish else "C"
+            rationale = (
+                f"{last['date']} closed at {fmt_yen(close)}. "
+                f"No confirmed short entry; watch for a daily close below "
+                f"{fmt_yen(short_level)} (prior 20-session low, Tenkan and Kijun)."
+            )
+
     analyst = analyst_overlay(
         stock["ticker"], close, bullish or breakout, bearish or breakdown,
         tenkan, kijun, analyst_snapshot, now
     )
-    strength = shift_strength(strength, analyst.get("strength_delta", 0))
+    if not short_only or signal in ("SHORT", "COVER"):
+        strength = shift_strength(strength, analyst.get("strength_delta", 0))
 
     if analyst.get("fresh"):
         stance = analyst.get("stance", "NEUTRAL")
@@ -217,6 +233,7 @@ def analyze(stock, bars, analyst_snapshot, now):
         "ticker": stock["ticker"],
         "name": stock["name"],
         "signal": signal,
+        "strategy": stock.get("strategy"),
         "position": stock.get("position", "WATCH"),
         "trigger": trigger,
         "invalid": invalid,

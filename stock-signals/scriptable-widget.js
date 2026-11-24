@@ -222,7 +222,9 @@ function addSignalRow(widget, s, unsafe) {
 
   top.addSpacer(6);
 
-  const sig = top.addText(String(s.signal || "—"));
+  const signalLabel = s.strategy === "short_only" && s.signal === "WAIT"
+    ? "WAIT FOR SHORT" : String(s.signal || "—");
+  const sig = top.addText(signalLabel);
   sig.font = Font.boldSystemFont(9);
   sig.textColor = unsafe ? COLORS.orange : signalColor(s.signal);
 

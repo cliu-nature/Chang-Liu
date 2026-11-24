@@ -97,6 +97,20 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual({row["cloud_bottom"] for row in feed["signals"]}, {100})
         self.assertEqual([row["position"] for row in feed["signals"]], ["+300", "WATCH"])
 
+    def test_sega_short_only_waits_on_breakout_and_shorts_on_breakdown(self):
+        stock = STOCKS[1]
+        self.assertEqual(stock["strategy"], "short_only")
+        bars = market.validate_result(
+            chart(stock["symbol"]), stock["symbol"], "2026-11-19", AFTER_CLOSE, {}
+        )
+        for close, expected in ((110, "WAIT"), (100, "WAIT"), (90, "SHORT")):
+            with self.subTest(close=close):
+                bars[-1].update(close=close, high=max(102, close), low=min(98, close))
+                result = updater.analyze(stock, bars, {}, AFTER_CLOSE)
+                self.assertEqual(result["signal"], expected)
+                self.assertEqual(result["position"], "WATCH")
+                self.assertTrue(result["trigger"].startswith("Short: close < "))
+
     def test_older_source_retains_coherent_feed(self):
         def result(host, symbol):
             # A single regressing ticker must block the entire publication.

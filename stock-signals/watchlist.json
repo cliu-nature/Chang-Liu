@@ -16,7 +16,8 @@
       "ticker": "6460",
       "symbol": "6460.T",
       "name": "SEGA SAMMY",
-      "position": "WATCH"
+      "position": "WATCH",
+      "strategy": "short_only"
     }
   ]
 }
