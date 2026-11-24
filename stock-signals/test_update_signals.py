@@ -97,6 +97,19 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual({row["cloud_bottom"] for row in feed["signals"]}, {100})
         self.assertEqual([row["position"] for row in feed["signals"]], ["+300", "WATCH"])
 
+    def test_held_nitori_always_displays_reduce_line(self):
+        stock = STOCKS[0]
+        bars = market.validate_result(
+            chart(stock["symbol"]), stock["symbol"], "2026-11-19", AFTER_CLOSE, {}
+        )
+        for close, expected, level in ((110, "ADD", 98), (100, "HOLD", 98), (90, "REDUCE", 96)):
+            with self.subTest(close=close):
+                bars[-1].update(close=close, high=max(102, close), low=min(98, close))
+                result = updater.analyze(stock, bars, {}, AFTER_CLOSE)
+                self.assertEqual(result["signal"], expected)
+                self.assertEqual(result["reduce_below"], level)
+                self.assertEqual(result["trigger"], f"减仓线：收盘 < ¥{level}")
+
     def test_sega_short_only_waits_on_breakout_and_shorts_on_breakdown(self):
         stock = STOCKS[1]
         self.assertEqual(stock["strategy"], "short_only")

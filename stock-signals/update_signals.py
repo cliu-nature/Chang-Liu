@@ -202,6 +202,12 @@ def analyze(stock, bars, analyst_snapshot, now):
         )
 
 
+    reduce_below = None
+    if has_core:
+        reduce_below = min(recent_low, tenkan, kijun)
+        level = f"¥{reduce_below:,.2f}".rstrip("0").rstrip(".")
+        trigger = f"减仓线：收盘 < {level}"
+
     short_only = stock.get("strategy") == "short_only" and not has_core
     if short_only:
         short_level = min(recent_low, tenkan, kijun)
@@ -249,6 +255,7 @@ def analyze(stock, bars, analyst_snapshot, now):
         "weekly_plan_through": None,
         "prior_20_session_high": recent_high,
         "prior_20_session_low": recent_low,
+        "reduce_below": reduce_below,
         "breakout": breakout,
         "breakdown": breakdown,
         "trend_regime": "bullish" if bullish else "bearish" if bearish else "mixed",
