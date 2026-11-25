@@ -1,15 +1,15 @@
 {
-  "updated": "2026-11-25 06:26 JST",
-  "generated_at": "2026-11-25T06:26:57+09:00",
+  "updated": "2026-11-26 03:11 JST",
+  "generated_at": "2026-11-26T03:11:17+09:00",
   "market_data_through": "2026-11-20 close",
-  "expected_market_date": "2026-11-24",
+  "expected_market_date": "2026-11-25",
   "market_status": "pre_open",
-  "next_update_due_at": "2026-11-25T16:45:00+09:00",
+  "next_update_due_at": "2026-11-26T16:45:00+09:00",
   "stale": true,
   "source": "yahoo_finance",
-  "source_data_lag_business_days": 1,
+  "source_data_lag_business_days": 2,
   "pipeline_status": "error",
-  "error": "Expected completed session 2026-11-24 unavailable for 9843.T, 6460.T",
+  "error": "Expected completed session 2026-11-25 unavailable for 9843.T, 6460.T",
   "diagnostics": {
     "previous_market_date": "2026-11-20",
     "symbols": {
@@ -18,49 +18,49 @@
           "source": "query1.finance.yahoo.com",
           "validation": "error",
           "interval": "1d",
-          "http_age": "0",
-          "last_timestamp": "2026-11-24T09:00:00+09:00",
-          "latest_bar": "2026-11-24",
-          "error": "ValueError: Incomplete OHLCV: 2026-11-24"
+          "http_age": "1",
+          "last_timestamp": "2026-11-25T09:00:00+09:00",
+          "latest_bar": "2026-11-25",
+          "error": "ValueError: Incomplete OHLCV: 2026-11-25"
         },
         {
           "source": "query2.finance.yahoo.com",
           "validation": "error",
           "interval": "1d",
           "http_age": "0",
-          "last_timestamp": "2026-11-24T09:00:00+09:00",
-          "latest_bar": "2026-11-24",
-          "error": "ValueError: Incomplete OHLCV: 2026-11-24"
+          "last_timestamp": "2026-11-25T09:00:00+09:00",
+          "latest_bar": "2026-11-25",
+          "error": "ValueError: Incomplete OHLCV: 2026-11-25"
         },
         {
           "source": "query1.finance.yahoo.com",
           "validation": "error",
           "interval": "5m",
           "fallback": "intraday_aggregate",
-          "daily_http_age": "3",
+          "daily_http_age": "0",
           "daily": {
-            "last_timestamp": "2026-11-24T09:00:00+09:00",
-            "latest_bar": "2026-11-20",
-            "excluded_unfinished_bar": "2026-11-24",
-            "regular_market_time": "2026-11-24T15:30:00+09:00"
+            "last_timestamp": "2026-11-25T09:00:00+09:00",
+            "latest_bar": "2026-11-24",
+            "excluded_unfinished_bar": "2026-11-25",
+            "regular_market_time": "2026-11-25T15:30:00+09:00"
           },
-          "http_age": "1",
-          "error": "ValueError: Incomplete intraday OHLC: 2026-11-24"
+          "http_age": "0",
+          "error": "ValueError: Incomplete intraday OHLC: 2026-11-25"
         },
         {
           "source": "query2.finance.yahoo.com",
           "validation": "error",
           "interval": "5m",
           "fallback": "intraday_aggregate",
-          "daily_http_age": "1",
+          "daily_http_age": "0",
           "daily": {
-            "last_timestamp": "2026-11-24T09:00:00+09:00",
-            "latest_bar": "2026-11-20",
-            "excluded_unfinished_bar": "2026-11-24",
-            "regular_market_time": "2026-11-24T15:30:00+09:00"
+            "last_timestamp": "2026-11-25T09:00:00+09:00",
+            "latest_bar": "2026-11-24",
+            "excluded_unfinished_bar": "2026-11-25",
+            "regular_market_time": "2026-11-25T15:30:00+09:00"
           },
-          "http_age": "0",
-          "error": "ValueError: Incomplete intraday OHLC: 2026-11-24"
+          "http_age": "1",
+          "error": "ValueError: Incomplete intraday OHLC: 2026-11-25"
         }
       ],
       "6460.T": [
@@ -69,18 +69,18 @@
           "validation": "error",
           "interval": "1d",
           "http_age": "1",
-          "last_timestamp": "2026-11-24T09:00:00+09:00",
-          "latest_bar": "2026-11-24",
-          "error": "ValueError: Incomplete OHLCV: 2026-11-24"
+          "last_timestamp": "2026-11-25T09:00:00+09:00",
+          "latest_bar": "2026-11-25",
+          "error": "ValueError: Incomplete OHLCV: 2026-11-25"
         },
         {
           "source": "query2.finance.yahoo.com",
           "validation": "error",
           "interval": "1d",
           "http_age": "0",
-          "last_timestamp": "2026-11-24T09:00:00+09:00",
-          "latest_bar": "2026-11-24",
-          "error": "ValueError: Incomplete OHLCV: 2026-11-24"
+          "last_timestamp": "2026-11-25T09:00:00+09:00",
+          "latest_bar": "2026-11-25",
+          "error": "ValueError: Incomplete OHLCV: 2026-11-25"
         },
         {
           "source": "query1.finance.yahoo.com",
@@ -89,13 +89,13 @@
           "fallback": "intraday_aggregate",
           "daily_http_age": "0",
           "daily": {
-            "last_timestamp": "2026-11-24T09:00:00+09:00",
-            "latest_bar": "2026-11-20",
-            "excluded_unfinished_bar": "2026-11-24",
-            "regular_market_time": "2026-11-24T15:30:00+09:00"
+            "last_timestamp": "2026-11-25T09:00:00+09:00",
+            "latest_bar": "2026-11-24",
+            "excluded_unfinished_bar": "2026-11-25",
+            "regular_market_time": "2026-11-25T15:30:00+09:00"
           },
           "http_age": "0",
-          "error": "ValueError: Incomplete intraday OHLC: 2026-11-24"
+          "error": "ValueError: Incomplete intraday OHLC: 2026-11-25"
         },
         {
           "source": "query2.finance.yahoo.com",
@@ -104,13 +104,13 @@
           "fallback": "intraday_aggregate",
           "daily_http_age": "0",
           "daily": {
-            "last_timestamp": "2026-11-24T09:00:00+09:00",
-            "latest_bar": "2026-11-20",
-            "excluded_unfinished_bar": "2026-11-24",
-            "regular_market_time": "2026-11-24T15:30:00+09:00"
+            "last_timestamp": "2026-11-25T09:00:00+09:00",
+            "latest_bar": "2026-11-24",
+            "excluded_unfinished_bar": "2026-11-25",
+            "regular_market_time": "2026-11-25T15:30:00+09:00"
           },
           "http_age": "0",
-          "error": "ValueError: Incomplete intraday OHLC: 2026-11-24"
+          "error": "ValueError: Incomplete intraday OHLC: 2026-11-25"
         }
       ]
     }
