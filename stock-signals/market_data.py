@@ -1,5 +1,6 @@
 import json
 import math
+import re
 import time
 from datetime import datetime, timedelta, timezone
 from functools import lru_cache
@@ -13,9 +14,8 @@ HOSTS = ("query1.finance.yahoo.com", "query2.finance.yahoo.com")
 HISTORY = 78  # 52 sessions for Span B, displaced 26 sessions
 PUBLICATION_WINDOW = timedelta(minutes=75)
 FINALIZATION_BUFFER = timedelta(minutes=10)
-INTRADAY_INTERVAL = "5m"
-INTRADAY_RANGE = "5d"
-INTRADAY_STEP = timedelta(minutes=5)
+OHLCV = ("open", "high", "low", "close", "volume")
+HISTORY_HOST = "finance.yahoo.co.jp"
 
 
 @lru_cache(maxsize=1)
@@ -86,91 +86,33 @@ def fetch_result(host, symbol):
 
 
 
-def fetch_intraday_result(host, symbol):
-    url = (
-        f"https://{host}/v8/finance/chart/{quote(symbol, safe='')}"
-        f"?range={INTRADAY_RANGE}&interval={INTRADAY_INTERVAL}"
-        f"&includePrePost=false&_={time.time_ns()}"
-    )
+def parse_published_history(html, dates):
+    wanted = {day.replace("-", "/"): day for day in dates}
+    bars = {}
+    for row in re.findall(r"<tr\b[^>]*>(.*?)</tr>", html, re.S):
+        header = re.search(r"<th\b[^>]*>\s*(\d{4}/\d{2}/\d{2})\s*</th>", row)
+        if not header or header[1] not in wanted:
+            continue
+        day = wanted[header[1]]
+        values = re.findall(r'<span\b[^>]*class="[^"]*_StyledNumber__value[^"]*"[^>]*>([0-9,.]+)</span>', row)
+        if day in bars or len(values) < 6:
+            raise ValueError(f"Ambiguous Japanese daily history row: {day}")
+        fields = [float(value.replace(",", "")) for value in values[:5]]
+        bars[day] = dict(zip(OHLCV, fields))
+    if set(bars) != set(dates):
+        raise ValueError("Japanese history is missing required daily rows")
+    return bars
+
+
+def fetch_published_history(symbol, dates):
+    url = f"https://{HISTORY_HOST}/quote/{quote(symbol, safe='')}/history"
     req = Request(url, headers={
         "User-Agent": "Mozilla/5.0 StockSignals/2.0",
-        "Accept": "application/json",
-        "Cache-Control": "no-cache, no-store, max-age=0",
-        "Pragma": "no-cache",
+        "Accept": "text/html",
+        "Cache-Control": "no-cache",
     })
     with urlopen(req, timeout=15) as response:
-        chart = json.load(response)["chart"]
-        if chart.get("error"):
-            raise ValueError(f"Yahoo intraday chart error: {chart['error']}")
-        return chart["result"][0], response.headers.get("Age")
-
-
-def aggregate_intraday(result, symbol, expected, now, diagnostic):
-    meta = result["meta"]
-    if meta.get("symbol") != symbol or meta.get("exchangeTimezoneName") != "Asia/Tokyo":
-        raise ValueError("Unexpected Yahoo intraday symbol or exchange timezone")
-    if meta.get("currency") != "JPY":
-        raise ValueError("Expected intraday JPY data")
-
-    timestamps = result.get("timestamp") or []
-    quote_series = result["indicators"]["quote"][0]
-    fields = ("open", "high", "low", "close", "volume")
-    if any(len(quote_series[field]) != len(timestamps) for field in fields):
-        raise ValueError("Misaligned Yahoo intraday timestamp and quote arrays")
-
-    rows = []
-    for index, timestamp in enumerate(timestamps):
-        dt = yahoo_time(timestamp)
-        if dt.date().isoformat() != expected:
-            continue
-        values = {field: quote_series[field][index] for field in fields}
-        # Yahoo can include empty placeholder intraday rows. Ignore only fully empty rows.
-        if all(value is None for value in values.values()):
-            continue
-        if any(type(values[field]) not in (int, float) or not math.isfinite(values[field])
-               for field in ("open", "high", "low", "close")):
-            raise ValueError(f"Incomplete intraday OHLC: {expected}")
-        volume = values["volume"]
-        if volume is None:
-            volume = 0
-        if type(volume) not in (int, float) or not math.isfinite(volume) or volume < 0:
-            raise ValueError(f"Invalid intraday volume: {expected}")
-        if not (values["low"] > 0
-                and values["low"] <= min(values["open"], values["close"])
-                <= max(values["open"], values["close"]) <= values["high"]):
-            raise ValueError(f"Invalid intraday OHLC: {expected}")
-        rows.append((dt, values["open"], values["high"], values["low"], values["close"], volume))
-
-    if not rows:
-        raise ValueError(f"No intraday bars for expected session: {expected}")
-
-    rows.sort(key=lambda row: row[0])
-    close_time = calendar().session_close(expected).to_pydatetime().astimezone(JST)
-    diagnostic["intraday_first_timestamp"] = rows[0][0].isoformat()
-    diagnostic["intraday_last_timestamp"] = rows[-1][0].isoformat()
-    diagnostic["intraday_bar_count"] = len(rows)
-
-    # A 5-minute bar is stamped at its start. The last complete regular-session
-    # bar should therefore begin no earlier than 5 minutes before the close.
-    if rows[-1][0] < close_time - INTRADAY_STEP:
-        raise ValueError(f"Intraday session not complete: {expected}")
-
-    quote_time = yahoo_time(meta["regularMarketTime"])
-    diagnostic["intraday_regular_market_time"] = quote_time.isoformat()
-    if quote_time < close_time or quote_time > now.astimezone(JST):
-        raise ValueError("Yahoo intraday quote has no completed-session timestamp")
-
-    bar = {
-        "date": expected,
-        "open": rows[0][1],
-        "high": max(row[2] for row in rows),
-        "low": min(row[3] for row in rows),
-        "close": rows[-1][4],
-        "volume": sum(row[5] for row in rows),
-    }
-    if bar["volume"] <= 0:
-        raise ValueError(f"Intraday volume unavailable: {expected}")
-    return bar
+        return parse_published_history(response.read().decode("utf-8"), dates)
 
 
 def yahoo_time(timestamp):
@@ -186,7 +128,7 @@ def validate_result(result, symbol, expected, now, diagnostic):
 
     timestamps = result["timestamp"]
     quote_series = result["indicators"]["quote"][0]
-    fields = ("open", "high", "low", "close", "volume")
+    fields = OHLCV
     if any(len(quote_series[field]) != len(timestamps) for field in fields):
         raise ValueError("Misaligned Yahoo timestamp and quote arrays")
 
@@ -242,58 +184,51 @@ def validate_result(result, symbol, expected, now, diagnostic):
 def fetch_chart(symbol, expected, now):
     attempts = []
 
-    # Primary path: validated Yahoo daily OHLCV.
+    placeholders = []
+    errors = (OSError, ValueError, TypeError, KeyError, IndexError, OverflowError)
     for host in HOSTS:
         diagnostic = {"source": host, "validation": "error", "interval": "1d"}
         attempts.append(diagnostic)
+        result = None
         try:
             result, diagnostic["http_age"] = fetch_result(host, symbol)
             bars = validate_result(result, symbol, expected, now, diagnostic)
-        except (OSError, ValueError, TypeError, KeyError, IndexError, OverflowError) as exc:
+        except errors as exc:
             diagnostic["error"] = f"{type(exc).__name__}: {exc}"
+            if result is not None and str(exc) == f"Incomplete OHLCV: {expected}":
+                placeholders.append(result)
         else:
             diagnostic["validation"] = "ok"
             return bars, attempts
 
-    # Recovery path: Yahoo occasionally publishes a placeholder/null daily bar
-    # while its intraday history is already complete. Only recover that specific
-    # failure mode; a genuinely lagging daily feed must remain stale.
-    recoverable = any(
-        "Incomplete OHLCV" in attempt.get("error", "")
-        for attempt in attempts
-        if attempt.get("interval") == "1d"
-    )
-    if not recoverable:
+    if not placeholders:
         return None, attempts
 
-    # Rebuild only the expected session from 5-minute bars and join it to
-    # validated prior daily history.
+    diagnostic = {"source": HISTORY_HOST, "validation": "error",
+                  "interval": "1d", "fallback": "published_daily_history"}
+    attempts.append(diagnostic)
     previous = session_date(calendar().previous_session(expected))
-    for host in HOSTS:
-        diagnostic = {
-            "source": host,
-            "validation": "error",
-            "interval": INTRADAY_INTERVAL,
-            "fallback": "intraday_aggregate",
-        }
-        attempts.append(diagnostic)
-        try:
-            daily_result, diagnostic["daily_http_age"] = fetch_result(host, symbol)
-            prior_bars = validate_result(
-                daily_result, symbol, previous, now, diagnostic.setdefault("daily", {})
-            )
-            intraday_result, diagnostic["http_age"] = fetch_intraday_result(host, symbol)
-            latest_bar = aggregate_intraday(
-                intraday_result, symbol, expected, now, diagnostic
-            )
-            bars = prior_bars[-(HISTORY - 1):] + [latest_bar]
-            if len(bars) < HISTORY:
-                raise ValueError(f"Not enough combined history for {symbol}")
-        except (OSError, ValueError, TypeError, KeyError, IndexError, OverflowError) as exc:
-            diagnostic["error"] = f"{type(exc).__name__}: {exc}"
-        else:
+    try:
+        published = fetch_published_history(symbol, (previous, expected))
+        for result in placeholders:
+            prior = validate_result(result, symbol, previous, now, {})
+            if any(prior[-1][field] != published[previous][field] for field in OHLCV):
+                continue
+            quotes = result["indicators"]["quote"][0]
+            index = next(i for i, timestamp in enumerate(result["timestamp"])
+                         if yahoo_time(timestamp).date().isoformat() == expected)
+            if any(quotes[field][index] is not None
+                   and quotes[field][index] != published[expected][field] for field in OHLCV):
+                continue
+            recovered = {field: values.copy() for field, values in quotes.items()}
+            for field in OHLCV:
+                recovered[field][index] = published[expected][field]
+            candidate = {**result, "indicators": {"quote": [recovered]}}
+            bars = validate_result(candidate, symbol, expected, now, diagnostic)
             diagnostic["validation"] = "ok"
+            diagnostic["matched_prior_session"] = previous
             return bars, attempts
-
+        raise ValueError("Japanese and global Yahoo daily rows disagree")
+    except errors as exc:
+        diagnostic["error"] = f"{type(exc).__name__}: {exc}"
     return None, attempts
-

@@ -49,30 +49,6 @@ def chart(symbol, latest="2026-11-19"):
 
 
 
-def intraday_chart(symbol, day="2026-11-19"):
-    return {
-        "meta": {
-            "symbol": symbol,
-            "exchangeTimezoneName": "Asia/Tokyo",
-            "currency": "JPY",
-            "regularMarketTime": jst(day + "T15:30").timestamp(),
-        },
-        "timestamp": [
-            jst(day + "T09:00").timestamp(),
-            jst(day + "T15:25").timestamp(),
-        ],
-        "indicators": {
-            "quote": [{
-                "open": [100, 101],
-                "high": [102, 103],
-                "low": [98, 99],
-                "close": [101, 102],
-                "volume": [500, 700],
-            }]
-        },
-    }
-
-
 def snapshot(score, as_of="2026-11-16"):
     return {"expires_after_days": 10, "stocks": {
         "9843": {"as_of": as_of, "stance": "TEST", "stance_score": score,
@@ -154,29 +130,31 @@ class PipelineTests(unittest.TestCase):
                 self.assertEqual(attempts[-1]["source"], market.HOSTS[1])
 
 
-    def test_null_daily_bar_recovers_from_intraday(self):
+    def test_null_daily_bar_recovers_from_published_history(self):
         def daily_result(host, symbol):
             result = chart(symbol)
-            for field in ("open", "high", "low", "close", "volume"):
+            for field in market.OHLCV:
                 result["indicators"]["quote"][0][field][-1] = None
             return result, "0"
 
+        html = "".join(
+            '<tr><th class="date">' + day + '</th>'
+            + ''.join(f'<td><span class="_StyledNumber__value_abc">{value}</span></td>'
+                      for value in (100, 102, 98, 100, "1,000", 100))
+            + '</tr>' for day in ("2026/11/18", "2026/11/19")
+        )
+        history = market.parse_published_history(html, ("2026-11-18", "2026-11-19"))
         with patch.object(market, "fetch_result", side_effect=daily_result), \
-             patch.object(market, "fetch_intraday_result",
-                          side_effect=lambda host, symbol: (intraday_chart(symbol), "0")):
+             patch.object(market, "fetch_published_history", return_value=history):
             bars, attempts = market.fetch_chart("9843.T", "2026-11-19", AFTER_CLOSE)
+            self.assertEqual(len(bars), market.HISTORY)
+            self.assertEqual(bars[-1], {"date": "2026-11-19", **history["2026-11-19"]})
+            self.assertEqual(attempts[-1]["fallback"], "published_daily_history")
 
-        self.assertEqual(len(bars), market.HISTORY)
-        self.assertEqual(bars[-1], {
-            "date": "2026-11-19",
-            "open": 100,
-            "high": 103,
-            "low": 98,
-            "close": 102,
-            "volume": 1200,
-        })
-        self.assertEqual(attempts[-1]["validation"], "ok")
-        self.assertEqual(attempts[-1]["fallback"], "intraday_aggregate")
+            history["2026-11-18"]["volume"] = 999
+            bars, attempts = market.fetch_chart("9843.T", "2026-11-19", AFTER_CLOSE)
+            self.assertIsNone(bars)
+            self.assertIn("disagree", attempts[-1]["error"])
 
     def test_both_hosts_fail_and_failure_publishes_diagnostics(self):
         with patch.object(market, "fetch_result", side_effect=OSError("timeout")):
