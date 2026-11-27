@@ -73,18 +73,20 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual({row["cloud_bottom"] for row in feed["signals"]}, {100})
         self.assertEqual([row["position"] for row in feed["signals"]], ["+300", "WATCH"])
 
-    def test_held_nitori_always_displays_reduce_line(self):
+    def test_held_nitori_always_displays_both_lines(self):
         stock = STOCKS[0]
         bars = market.validate_result(
             chart(stock["symbol"]), stock["symbol"], "2026-11-19", AFTER_CLOSE, {}
         )
-        for close, expected, level in ((110, "ADD", 98), (100, "HOLD", 98), (90, "REDUCE", 96)):
+        for close, expected, add, reduce in ((110, "ADD", 104, 98), (100, "HOLD", 102, 98),
+                                             (90, "REDUCE", 102, 96)):
             with self.subTest(close=close):
                 bars[-1].update(close=close, high=max(102, close), low=min(98, close))
                 result = updater.analyze(stock, bars, {}, AFTER_CLOSE)
                 self.assertEqual(result["signal"], expected)
-                self.assertEqual(result["reduce_below"], level)
-                self.assertEqual(result["trigger"], f"减仓线：收盘 < ¥{level}")
+                self.assertEqual(result["add_above"], add)
+                self.assertEqual(result["reduce_below"], reduce)
+                self.assertEqual(result["trigger"], f"收盘 加仓 >¥{add} · 减仓 <¥{reduce}")
 
     def test_sega_short_only_waits_on_breakout_and_shorts_on_breakdown(self):
         stock = STOCKS[1]
@@ -197,6 +199,8 @@ class PipelineTests(unittest.TestCase):
                     "9843", 105, True, False, 100, 100, snapshot(score, as_of), AFTER_CLOSE
                 )
                 self.assertEqual(overlay["alignment"], expected_alignment)
+                if not overlay["fresh"]:
+                    self.assertEqual(overlay["stance"], "EXPIRED")
                 self.assertEqual(overlay["strength_delta"], delta)
                 self.assertEqual(overlay["buy_count"], 3)
                 self.assertEqual(updater.shift_strength("B", delta),

@@ -29,7 +29,7 @@ def avg(values):
 def fmt_yen(x):
     if x is None or not math.isfinite(x):
         return "-"
-    return f"¥{x:,.0f}"
+    return f"¥{x:,.2f}".rstrip("0").rstrip(".")
 
 
 
@@ -93,7 +93,7 @@ def analyst_overlay(ticker, close, bullish, bearish, tenkan, kijun, snapshot, no
 
     return {
         "fresh": fresh,
-        "stance": item.get("stance", "NEUTRAL"),
+        "stance": item.get("stance", "NEUTRAL") if fresh else "EXPIRED",
         "raw_consensus": item.get("raw_consensus"),
         "alignment": alignment,
         "target_price": target,
@@ -202,11 +202,12 @@ def analyze(stock, bars, analyst_snapshot, now):
         )
 
 
+    add_above = None
     reduce_below = None
     if has_core:
+        add_above = max(recent_high, tenkan, kijun)
         reduce_below = min(recent_low, tenkan, kijun)
-        level = f"¥{reduce_below:,.2f}".rstrip("0").rstrip(".")
-        trigger = f"减仓线：收盘 < {level}"
+        trigger = f"收盘 加仓 >{fmt_yen(add_above)} · 减仓 <{fmt_yen(reduce_below)}"
 
     short_only = stock.get("strategy") == "short_only" and not has_core
     if short_only:
@@ -255,6 +256,7 @@ def analyze(stock, bars, analyst_snapshot, now):
         "weekly_plan_through": None,
         "prior_20_session_high": recent_high,
         "prior_20_session_low": recent_low,
+        "add_above": add_above,
         "reduce_below": reduce_below,
         "breakout": breakout,
         "breakdown": breakdown,
