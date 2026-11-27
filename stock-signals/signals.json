@@ -1,9 +1,9 @@
 {
-  "updated": "2026-11-27 05:22 JST",
-  "generated_at": "2026-11-27T05:22:11+09:00",
+  "updated": "2026-11-27 09:53 JST",
+  "generated_at": "2026-11-27T09:53:32+09:00",
   "market_data_through": "2026-11-26 close",
   "expected_market_date": "2026-11-26",
-  "market_status": "pre_open",
+  "market_status": "trading_day",
   "next_update_due_at": "2026-11-27T16:45:00+09:00",
   "stale": false,
   "source": "yahoo_finance",
@@ -16,61 +16,25 @@
       "9843.T": [
         {
           "source": "query1.finance.yahoo.com",
-          "validation": "error",
-          "interval": "1d",
-          "http_age": "0",
-          "last_timestamp": "2026-11-26T09:00:00+09:00",
-          "latest_bar": "2026-11-26",
-          "error": "ValueError: Incomplete OHLCV: 2026-11-26"
-        },
-        {
-          "source": "query2.finance.yahoo.com",
-          "validation": "error",
-          "interval": "1d",
-          "http_age": "0",
-          "last_timestamp": "2026-11-26T09:00:00+09:00",
-          "latest_bar": "2026-11-26",
-          "error": "ValueError: Incomplete OHLCV: 2026-11-26"
-        },
-        {
-          "source": "finance.yahoo.co.jp",
           "validation": "ok",
           "interval": "1d",
-          "fallback": "published_daily_history",
-          "last_timestamp": "2026-11-26T09:00:00+09:00",
+          "http_age": "0",
+          "last_timestamp": "2026-11-27T09:00:00+09:00",
           "latest_bar": "2026-11-26",
-          "regular_market_time": "2026-11-26T15:30:00+09:00",
-          "matched_prior_session": "2026-11-25"
+          "excluded_unfinished_bar": "2026-11-27",
+          "regular_market_time": "2026-11-27T09:38:29+09:00"
         }
       ],
       "6460.T": [
         {
           "source": "query1.finance.yahoo.com",
-          "validation": "error",
-          "interval": "1d",
-          "http_age": "1",
-          "last_timestamp": "2026-11-26T09:00:00+09:00",
-          "latest_bar": "2026-11-26",
-          "error": "ValueError: Incomplete OHLCV: 2026-11-26"
-        },
-        {
-          "source": "query2.finance.yahoo.com",
-          "validation": "error",
-          "interval": "1d",
-          "http_age": "1",
-          "last_timestamp": "2026-11-26T09:00:00+09:00",
-          "latest_bar": "2026-11-26",
-          "error": "ValueError: Incomplete OHLCV: 2026-11-26"
-        },
-        {
-          "source": "finance.yahoo.co.jp",
           "validation": "ok",
           "interval": "1d",
-          "fallback": "published_daily_history",
-          "last_timestamp": "2026-11-26T09:00:00+09:00",
+          "http_age": "1",
+          "last_timestamp": "2026-11-27T09:00:00+09:00",
           "latest_bar": "2026-11-26",
-          "regular_market_time": "2026-11-26T15:30:00+09:00",
-          "matched_prior_session": "2026-11-25"
+          "excluded_unfinished_bar": "2026-11-27",
+          "regular_market_time": "2026-11-27T09:38:19+09:00"
         }
       ]
     }
@@ -82,8 +46,8 @@
       "signal": "ADD",
       "strategy": null,
       "position": "+300",
-      "trigger": "减仓线：收盘 < ¥3,233",
-      "invalid": "Watch < ¥3,504",
+      "trigger": "收盘 加仓 >¥3,750 · 减仓 <¥3,233",
+      "invalid": "Watch < ¥3,504.5",
       "rationale": "2026-11-26 closed at ¥3,753, above the prior 20-session high and above Tenkan/Kijun.",
       "strength": "B+",
       "close": 3753.0,
@@ -96,11 +60,12 @@
       "weekly_plan_through": null,
       "prior_20_session_high": 3750.0,
       "prior_20_session_low": 3233.0,
+      "add_above": 3750.0,
       "reduce_below": 3233.0,
       "breakout": true,
       "breakdown": false,
       "trend_regime": "bullish",
-      "analyst_stance": "NEUTRAL",
+      "analyst_stance": "EXPIRED",
       "analyst_alignment": "STALE — IGNORED",
       "analyst_fresh": false,
       "analyst_as_of": "2026-11-16",
@@ -131,11 +96,12 @@
       "weekly_plan_through": null,
       "prior_20_session_high": 3519.0,
       "prior_20_session_low": 3161.0,
+      "add_above": null,
       "reduce_below": null,
       "breakout": false,
       "breakdown": false,
       "trend_regime": "mixed",
-      "analyst_stance": "MODERATELY BULLISH",
+      "analyst_stance": "EXPIRED",
       "analyst_alignment": "STALE — IGNORED",
       "analyst_fresh": false,
       "analyst_as_of": "2026-11-16",
