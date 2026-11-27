@@ -1,6 +1,6 @@
 {
-  "updated": "2026-11-28 02:39 JST",
-  "generated_at": "2026-11-28T02:39:59+09:00",
+  "updated": "2026-11-28 03:58 JST",
+  "generated_at": "2026-11-28T03:58:09+09:00",
   "market_data_through": "2026-11-27 close",
   "expected_market_date": "2026-11-27",
   "market_status": "closed",
@@ -18,7 +18,7 @@
           "source": "query1.finance.yahoo.com",
           "validation": "error",
           "interval": "1d",
-          "http_age": "3",
+          "http_age": "0",
           "last_timestamp": "2026-11-27T09:00:00+09:00",
           "latest_bar": "2026-11-27",
           "error": "ValueError: Incomplete OHLCV: 2026-11-27"
@@ -27,7 +27,7 @@
           "source": "query2.finance.yahoo.com",
           "validation": "error",
           "interval": "1d",
-          "http_age": "1",
+          "http_age": "0",
           "last_timestamp": "2026-11-27T09:00:00+09:00",
           "latest_bar": "2026-11-27",
           "error": "ValueError: Incomplete OHLCV: 2026-11-27"
