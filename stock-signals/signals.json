@@ -1,73 +1,38 @@
 {
-  "updated": "2026-11-28 05:08 JST",
-  "generated_at": "2026-11-28T05:08:50+09:00",
+  "updated": "2026-11-28 16:42 JST",
+  "generated_at": "2026-11-28T16:42:16+09:00",
   "market_data_through": "2026-11-27 close",
   "expected_market_date": "2026-11-27",
   "market_status": "closed",
   "next_update_due_at": "2026-11-30T16:45:00+09:00",
-  "stale": true,
+  "stale": false,
   "source": "yahoo_finance",
   "source_data_lag_business_days": 0,
-  "pipeline_status": "partial",
-  "error": "Expected completed session 2026-11-27 unavailable for 6460.T",
+  "pipeline_status": "ok",
+  "error": null,
   "diagnostics": {
     "previous_market_date": "2026-11-27",
     "symbols": {
       "9843.T": [
         {
           "source": "query1.finance.yahoo.com",
-          "validation": "error",
+          "validation": "ok",
           "interval": "1d",
           "http_age": "0",
           "last_timestamp": "2026-11-27T09:00:00+09:00",
           "latest_bar": "2026-11-27",
-          "error": "ValueError: Incomplete OHLCV: 2026-11-27"
-        },
-        {
-          "source": "query2.finance.yahoo.com",
-          "validation": "error",
-          "interval": "1d",
-          "http_age": "1",
-          "last_timestamp": "2026-11-27T09:00:00+09:00",
-          "latest_bar": "2026-11-27",
-          "error": "ValueError: Incomplete OHLCV: 2026-11-27"
-        },
-        {
-          "source": "finance.yahoo.co.jp",
-          "validation": "ok",
-          "interval": "1d",
-          "fallback": "published_daily_history",
-          "last_timestamp": "2026-11-27T09:00:00+09:00",
-          "latest_bar": "2026-11-27",
-          "regular_market_time": "2026-11-27T15:30:00+09:00",
-          "matched_prior_session": "2026-11-26"
+          "regular_market_time": "2026-11-27T15:30:00+09:00"
         }
       ],
       "6460.T": [
         {
           "source": "query1.finance.yahoo.com",
-          "validation": "error",
+          "validation": "ok",
           "interval": "1d",
-          "http_age": "0",
+          "http_age": "3",
           "last_timestamp": "2026-11-27T09:00:00+09:00",
           "latest_bar": "2026-11-27",
-          "error": "ValueError: Incomplete OHLCV: 2026-11-27"
-        },
-        {
-          "source": "query2.finance.yahoo.com",
-          "validation": "error",
-          "interval": "1d",
-          "http_age": "0",
-          "last_timestamp": "2026-11-27T09:00:00+09:00",
-          "latest_bar": "2026-11-27",
-          "error": "ValueError: Incomplete OHLCV: 2026-11-27"
-        },
-        {
-          "source": "finance.yahoo.co.jp",
-          "validation": "error",
-          "interval": "1d",
-          "fallback": "published_daily_history",
-          "error": "ValueError: Japanese and global Yahoo daily rows disagree"
+          "regular_market_time": "2026-11-27T15:30:00+09:00"
         }
       ]
     }
